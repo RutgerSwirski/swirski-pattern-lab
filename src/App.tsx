@@ -30,6 +30,14 @@ type PiecePair = {
   linkedPiece: PatternPiece | null;
 };
 
+type PieceHistory = {
+  past: PatternPiece[][];
+  present: PatternPiece[];
+  future: PatternPiece[][];
+};
+
+const MAX_HISTORY_STEPS = 100;
+
 function createInitialPiece(): PatternPiece {
   return {
     id: "front-panel",
@@ -80,12 +88,19 @@ function App() {
   const [lastPointerPosition, setLastPointerPosition] =
     useState<PointPosition | null>(null);
   const [activeTool, setActiveTool] = useState<Tool>("select");
-  const [pieces, setPieces] = useState<PatternPiece[]>([createInitialPiece()]);
+  const [pieceHistory, setPieceHistory] = useState<PieceHistory>({
+    past: [],
+    present: [createInitialPiece()],
+    future: [],
+  });
   const [draftPoints, setDraftPoints] = useState<PatternPoint[]>([]);
   const [draftCursor, setDraftCursor] = useState<PointPosition | null>(null);
   const [selectedPieceId, setSelectedPieceId] = useState<string | null>(null);
   const [focusedPoint, setFocusedPoint] = useState<FocusedPoint | null>(null);
   const nextId = useRef(1);
+  const pieces = pieceHistory.present;
+  const canUndo = pieceHistory.past.length > 0;
+  const canRedo = pieceHistory.future.length > 0;
 
   function makeId(prefix: string) {
     const id = `${prefix}-${nextId.current}`;
@@ -93,13 +108,70 @@ function App() {
     return id;
   }
 
+  const updatePieces = useCallback((
+    updater: (currentPieces: PatternPiece[]) => PatternPiece[],
+  ) => {
+    setPieceHistory((currentHistory) => {
+      const nextPieces = updater(currentHistory.present);
+
+      if (nextPieces === currentHistory.present) {
+        return currentHistory;
+      }
+
+      return {
+        past: [...currentHistory.past, currentHistory.present].slice(
+          -MAX_HISTORY_STEPS,
+        ),
+        present: nextPieces,
+        future: [],
+      };
+    });
+  }, []);
+
+  const undo = useCallback(() => {
+    setPieceHistory((currentHistory) => {
+      const previousPieces =
+        currentHistory.past[currentHistory.past.length - 1];
+
+      if (!previousPieces) {
+        return currentHistory;
+      }
+
+      return {
+        past: currentHistory.past.slice(0, -1),
+        present: previousPieces,
+        future: [currentHistory.present, ...currentHistory.future],
+      };
+    });
+    setFocusedPoint(null);
+  }, []);
+
+  const redo = useCallback(() => {
+    setPieceHistory((currentHistory) => {
+      const nextPieces = currentHistory.future[0];
+
+      if (!nextPieces) {
+        return currentHistory;
+      }
+
+      return {
+        past: [...currentHistory.past, currentHistory.present].slice(
+          -MAX_HISTORY_STEPS,
+        ),
+        present: nextPieces,
+        future: currentHistory.future.slice(1),
+      };
+    });
+    setFocusedPoint(null);
+  }, []);
+
   function updatePatternPoint(
     pieceId: string,
     pointId: string,
     x: number,
     y: number,
   ) {
-    setPieces((currentPieces) =>
+    updatePieces((currentPieces) =>
       currentPieces.map((piece) => {
         const pair = getPiecePair(currentPieces, pieceId);
 
@@ -159,7 +231,7 @@ function App() {
     setSelectedPieceId(pieceId);
     setFocusedPoint({ pieceId, pointId });
 
-    setPieces((currentPieces) =>
+    updatePieces((currentPieces) =>
       currentPieces.map((piece) => {
         const pair = getPiecePair(currentPieces, pieceId);
 
@@ -230,7 +302,7 @@ function App() {
     handle: "curveIn" | "curveOut",
     position: PointPosition,
   ) {
-    setPieces((currentPieces) =>
+    updatePieces((currentPieces) =>
       currentPieces.map((piece) => {
         const pair = getPiecePair(currentPieces, pieceId);
 
@@ -263,7 +335,7 @@ function App() {
   }
 
   function clearBezierSegment(pieceId: string, startPointId: string) {
-    setPieces((currentPieces) =>
+    updatePieces((currentPieces) =>
       currentPieces.map((piece) => {
         const pair = getPiecePair(currentPieces, pieceId);
 
@@ -289,7 +361,7 @@ function App() {
       ...point,
     };
 
-    setPieces((currentPieces) =>
+    updatePieces((currentPieces) =>
       currentPieces.map((piece) => {
         const pair = getPiecePair(currentPieces, pieceId);
 
@@ -336,7 +408,7 @@ function App() {
       return;
     }
 
-    setPieces((currentPieces) =>
+    updatePieces((currentPieces) =>
       currentPieces.map((currentPiece) =>
         currentPiece.id === pieceId ||
         currentPiece.id === piece.symmetry?.pairId
@@ -356,10 +428,10 @@ function App() {
         ? null
         : currentFocusedPoint,
     );
-  }, [pieces]);
+  }, [pieces, updatePieces]);
 
   function updatePiecePosition(pieceId: string, x: number, y: number) {
-    setPieces((currentPieces) =>
+    updatePieces((currentPieces) =>
       currentPieces.map((piece) => {
         const pair = getPiecePair(currentPieces, pieceId);
 
@@ -395,7 +467,7 @@ function App() {
   }
 
   function updatePieceMetadata(pieceId: string, metadata: PieceMetadata) {
-    setPieces((currentPieces) =>
+    updatePieces((currentPieces) =>
       currentPieces.map((piece) => {
         const pair = getPiecePair(currentPieces, pieceId);
 
@@ -420,7 +492,7 @@ function App() {
       mirroredPieceId,
     );
 
-    setPieces((currentPieces) => [
+    updatePieces((currentPieces) => [
       ...currentPieces.map((piece) =>
         piece.id === selectedPiece.id ? sourcePiece : piece,
       ),
@@ -452,7 +524,7 @@ function App() {
       return;
     }
 
-    setPieces((currentPieces) => [
+    updatePieces((currentPieces) => [
       ...currentPieces,
       {
         id: makeId("piece"),
@@ -471,7 +543,7 @@ function App() {
     setDraftCursor(null);
     setFocusedPoint(null);
     setActiveTool("select");
-  }, [draftPoints]);
+  }, [draftPoints, updatePieces]);
 
   useEffect(() => {
     function handleResize() {
@@ -535,6 +607,44 @@ function App() {
     };
   }, [deletePatternPoint, focusedPoint]);
 
+  useEffect(() => {
+    function handleHistoryKeyboardShortcuts(event: KeyboardEvent) {
+      const target = event.target;
+      const isTyping =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement;
+
+      if (isTyping || !(event.metaKey || event.ctrlKey)) {
+        return;
+      }
+
+      const key = event.key.toLowerCase();
+
+      if (key === "z" && event.shiftKey) {
+        event.preventDefault();
+        redo();
+        return;
+      }
+
+      if (key === "z") {
+        event.preventDefault();
+        undo();
+        return;
+      }
+
+      if (key === "y") {
+        event.preventDefault();
+        redo();
+      }
+    }
+
+    window.addEventListener("keydown", handleHistoryKeyboardShortcuts);
+
+    return () => {
+      window.removeEventListener("keydown", handleHistoryKeyboardShortcuts);
+    };
+  }, [redo, undo]);
+
   const selectedPiece =
     pieces.find((piece) => piece.id === selectedPieceId) ?? null;
 
@@ -552,12 +662,16 @@ function App() {
     >
       <Toolbar
         activeTool={activeTool}
+        canRedo={canRedo}
         canCreateSymmetry={Boolean(selectedPiece && !selectedPiece.symmetry)}
+        canUndo={canUndo}
         draftPointCount={draftPoints.length}
         onCancelDraft={cancelDraftPiece}
         onCreateSymmetry={createSymmetricPiece}
+        onRedo={redo}
         onFinishDraft={finishDraftPiece}
         onSelectTool={setActiveTool}
+        onUndo={undo}
       />
 
       {selectedPiece && (

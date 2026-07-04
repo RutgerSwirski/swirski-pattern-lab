@@ -2,25 +2,41 @@ import type { Tool } from "../types";
 
 type ToolbarProps = {
   activeTool: Tool;
+  canRedo: boolean;
   canCreateSymmetry: boolean;
+  canUndo: boolean;
   draftPointCount: number;
   onCancelDraft: () => void;
   onCreateSymmetry: () => void;
+  onRedo: () => void;
   onFinishDraft: () => void;
   onSelectTool: (tool: Tool) => void;
+  onUndo: () => void;
 };
 
 export function Toolbar({
   activeTool,
+  canRedo,
   canCreateSymmetry,
+  canUndo,
   draftPointCount,
   onCancelDraft,
   onCreateSymmetry,
+  onRedo,
   onFinishDraft,
   onSelectTool,
+  onUndo,
 }: ToolbarProps) {
   return (
     <div className="toolbar">
+      <button onClick={onUndo} disabled={!canUndo}>
+        Undo
+      </button>
+
+      <button onClick={onRedo} disabled={!canRedo}>
+        Redo
+      </button>
+
       <button
         className={activeTool === "select" ? "active" : ""}
         onClick={() => onSelectTool("select")}
