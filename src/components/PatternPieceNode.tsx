@@ -206,7 +206,7 @@ export function PatternPieceNode({
 
       {isSelected &&
         edges.map((edge) => {
-          function getSnappedPointOnEdge(
+          function getPointOnEdge(
             event: Konva.KonvaEventObject<MouseEvent | TouchEvent>,
           ): PointPosition | null {
             if (edge.isBezier) {
@@ -220,16 +220,7 @@ export function PatternPieceNode({
             }
 
             const localPointer = screenToPiecePoint(piece, pointer);
-            const closestPoint = getClosestPointOnSegment(
-              localPointer,
-              edge.start,
-              edge.end,
-            );
-
-            return {
-              x: snapToGrid(closestPoint.x),
-              y: snapToGrid(closestPoint.y),
-            };
+            return getClosestPointOnSegment(localPointer, edge.start, edge.end);
           }
 
           function isNearEdgeEndpoint(point: PointPosition) {
@@ -264,7 +255,7 @@ export function PatternPieceNode({
             const newPoint =
               hoverPoint?.edgeId === edge.id
                 ? hoverPoint.point
-                : getSnappedPointOnEdge(event);
+                : getPointOnEdge(event);
 
             if (!newPoint || isNearEdgeEndpoint(newPoint)) {
               return;
@@ -295,7 +286,7 @@ export function PatternPieceNode({
             }
 
             if ("altKey" in event.evt && event.evt.altKey && !edge.isBezier) {
-              const newPoint = getSnappedPointOnEdge(event);
+              const newPoint = getPointOnEdge(event);
 
               if (!newPoint || isNearEdgeEndpoint(newPoint)) {
                 return;
@@ -316,7 +307,7 @@ export function PatternPieceNode({
               return;
             }
 
-            const newPoint = getSnappedPointOnEdge(event);
+            const newPoint = getPointOnEdge(event);
 
             if (!newPoint || isNearEdgeEndpoint(newPoint)) {
               setHoverPoint((currentPoint) =>
