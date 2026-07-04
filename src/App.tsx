@@ -330,6 +330,21 @@ function App() {
     );
   }
 
+  function deletePatternPoint(pieceId: string, pointId: string) {
+    setPieces((currentPieces) =>
+      currentPieces.map((piece) => {
+        if (piece.id !== pieceId || piece.points.length <= 3) {
+          return piece;
+        }
+
+        return {
+          ...piece,
+          points: piece.points.filter((point) => point.id !== pointId),
+        };
+      }),
+    );
+  }
+
   function updatePiecePosition(pieceId: string, x: number, y: number) {
     setPieces((currentPieces) =>
       currentPieces.map((piece) =>
@@ -1096,6 +1111,14 @@ function App() {
                         onTouchStart={(event) => {
                           event.cancelBubble = true;
                         }}
+                        onDblClick={(event) => {
+                          event.cancelBubble = true;
+                          deletePatternPoint(piece.id, point.id);
+                        }}
+                        onDblTap={(event) => {
+                          event.cancelBubble = true;
+                          deletePatternPoint(piece.id, point.id);
+                        }}
                         onDragMove={(event) => {
                           event.cancelBubble = true;
 
@@ -1192,7 +1215,7 @@ function App() {
           <Text
             x={20}
             y={48}
-            text="Select: drag empty space to pan • Drag nodes to reshape • Double-click edge to add point"
+            text="Select: drag empty space to pan • Drag nodes to reshape • Double-click edge to add point • Double-click node to delete"
             fontSize={13}
             fill="#666666"
           />
