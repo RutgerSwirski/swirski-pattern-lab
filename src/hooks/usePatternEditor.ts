@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { mirrorPointPosition } from "../lib/geometry";
+import {
+  applyHistoryUpdate,
+  commitHistoryTransaction as commitHistoryTransactionState,
+  redoHistory,
+  undoHistory,
+  type HistoryState,
+} from "../lib/history";
 import { clearBezierSegmentHandles } from "../lib/patternEditing";
 import {
   createSymmetricPiecePair,
@@ -25,11 +32,7 @@ type PiecePair = {
   linkedPiece: PatternPiece | null;
 };
 
-type PieceHistory = {
-  past: PatternPiece[][];
-  present: PatternPiece[];
-  future: PatternPiece[][];
-};
+type PieceHistory = HistoryState<PatternPiece[]>;
 
 const MAX_HISTORY_STEPS = 100;
 
@@ -103,26 +106,16 @@ export function usePatternEditor() {
       setPieceHistory((currentHistory) => {
         const nextPieces = updater(currentHistory.present);
 
-        if (nextPieces === currentHistory.present) {
-          return currentHistory;
-        }
-
         if (historyTransactionStart.current) {
-          historyTransactionChanged.current = true;
-
-          return {
-            ...currentHistory,
-            present: nextPieces,
-          };
+          historyTransactionChanged.current =
+            historyTransactionChanged.current ||
+            nextPieces !== currentHistory.present;
         }
 
-        return {
-          past: [...currentHistory.past, currentHistory.present].slice(
-            -MAX_HISTORY_STEPS,
-          ),
-          present: nextPieces,
-          future: [],
-        };
+        return applyHistoryUpdate(currentHistory, nextPieces, {
+          maxHistorySteps: MAX_HISTORY_STEPS,
+          transactionStart: historyTransactionStart.current,
+        });
       });
     },
     [],
@@ -147,21 +140,12 @@ export function usePatternEditor() {
       historyTransactionStart.current = null;
       historyTransactionChanged.current = false;
 
-      if (
-        !transactionStart ||
-        !didChange ||
-        transactionStart === currentHistory.present
-      ) {
-        return currentHistory;
-      }
-
-      return {
-        past: [...currentHistory.past, transactionStart].slice(
-          -MAX_HISTORY_STEPS,
-        ),
-        present: currentHistory.present,
-        future: [],
-      };
+      return commitHistoryTransactionState(
+        currentHistory,
+        transactionStart,
+        didChange,
+        MAX_HISTORY_STEPS,
+      );
     });
   }, []);
 
@@ -170,18 +154,7 @@ export function usePatternEditor() {
     historyTransactionChanged.current = false;
 
     setPieceHistory((currentHistory) => {
-      const previousPieces =
-        currentHistory.past[currentHistory.past.length - 1];
-
-      if (!previousPieces) {
-        return currentHistory;
-      }
-
-      return {
-        past: currentHistory.past.slice(0, -1),
-        present: previousPieces,
-        future: [currentHistory.present, ...currentHistory.future],
-      };
+      return undoHistory(currentHistory);
     });
     setFocusedPoint(null);
   }, []);
@@ -191,19 +164,7 @@ export function usePatternEditor() {
     historyTransactionChanged.current = false;
 
     setPieceHistory((currentHistory) => {
-      const nextPieces = currentHistory.future[0];
-
-      if (!nextPieces) {
-        return currentHistory;
-      }
-
-      return {
-        past: [...currentHistory.past, currentHistory.present].slice(
-          -MAX_HISTORY_STEPS,
-        ),
-        present: nextPieces,
-        future: currentHistory.future.slice(1),
-      };
+      return redoHistory(currentHistory);
     });
     setFocusedPoint(null);
   }, []);
