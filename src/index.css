@@ -1,0 +1,161 @@
+:root {
+  font-family: Inter, system-ui, sans-serif;
+  color: #111;
+  background: #f7f7f5;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+canvas {
+  display: block;
+}
+
+.toolbar {
+  position: fixed;
+  z-index: 10;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid #d8d8d8;
+  border-radius: 8px;
+}
+
+.toolbar button {
+  padding: 8px 10px;
+  border: 1px solid #cfcfcf;
+  border-radius: 5px;
+  background: white;
+  cursor: pointer;
+}
+
+.toolbar button.active {
+  background: #171717;
+  color: white;
+  border-color: #171717;
+}
+
+.toolbar button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.piece-inspector {
+  position: fixed;
+  z-index: 10;
+  top: 76px;
+  right: 16px;
+  width: min(320px, calc(100vw - 32px));
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid #d8d8d8;
+  border-radius: 8px;
+  box-shadow: 0 18px 45px rgba(20, 20, 20, 0.12);
+}
+
+.piece-inspector__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.piece-inspector__eyebrow {
+  margin: 0 0 4px;
+  color: #777;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.piece-inspector h2 {
+  margin: 0;
+  color: #111;
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+.piece-inspector__close {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid #d0d0d0;
+  border-radius: 5px;
+  background: #fff;
+  color: #333;
+  cursor: pointer;
+}
+
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+}
+
+.field span,
+.metric span {
+  color: #666;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.field input,
+.field textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 9px;
+  border: 1px solid #cfcfcf;
+  border-radius: 5px;
+  background: #fff;
+  color: #111;
+  font: inherit;
+}
+
+.field textarea {
+  resize: vertical;
+}
+
+.field input:focus,
+.field textarea:focus,
+.piece-inspector__close:focus {
+  outline: 2px solid #93c5fd;
+  outline-offset: 1px;
+}
+
+.metric {
+  display: grid;
+  align-content: center;
+  gap: 6px;
+  min-height: 66px;
+  padding: 8px 9px;
+  border: 1px solid #d8d8d8;
+  border-radius: 5px;
+  background: #f7f7f5;
+}
+
+.metric strong {
+  color: #111;
+  font-size: 15px;
+}
