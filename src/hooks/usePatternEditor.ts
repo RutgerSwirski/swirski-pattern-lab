@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { mirrorPointPosition } from "../lib/geometry";
 import { clearBezierSegmentHandles } from "../lib/patternEditing";
@@ -82,16 +82,19 @@ export function usePatternEditor() {
   const [draftCursor, setDraftCursor] = useState<PointPosition | null>(null);
   const [selectedPieceId, setSelectedPieceId] = useState<string | null>(null);
   const [focusedPoint, setFocusedPoint] = useState<FocusedPoint | null>(null);
-  const nextId = crypto.randomUUID();
+  const idSeed = useRef(crypto.randomUUID());
+  const nextId = useRef(1);
   const pieces = pieceHistory.present;
   const selectedPiece =
     pieces.find((piece) => piece.id === selectedPieceId) ?? null;
   const canUndo = pieceHistory.past.length > 0;
   const canRedo = pieceHistory.future.length > 0;
 
-  function makeId(prefix: string) {
-    return `${prefix}-${nextId}`;
-  }
+  const makeId = useCallback((prefix: string) => {
+    const id = `${prefix}-${idSeed.current}-${nextId.current}`;
+    nextId.current += 1;
+    return id;
+  }, []);
 
   const updatePieces = useCallback(
     (updater: (currentPieces: PatternPiece[]) => PatternPiece[]) => {
@@ -629,7 +632,7 @@ export function usePatternEditor() {
     setDraftCursor(null);
     setFocusedPoint(null);
     setActiveTool("select");
-  }, [draftPoints, updatePieces]);
+  }, [draftPoints, makeId, updatePieces]);
 
   useEffect(() => {
     function handleDraftKeyboardShortcuts(event: KeyboardEvent) {

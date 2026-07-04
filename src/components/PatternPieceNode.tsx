@@ -239,7 +239,10 @@ export function PatternPieceNode({
               return;
             }
 
-            if (edgePointerButton.current !== null) {
+            if (
+              edgePointerButton.current !== null &&
+              edgePointerButton.current !== 0
+            ) {
               return;
             }
 
@@ -345,10 +348,12 @@ export function PatternPieceNode({
 
           function handleEdgeDragEnd(event: Konva.KonvaEventObject<DragEvent>) {
             event.cancelBubble = true;
+            edgePointerButton.current = null;
             event.target.position({ x: 0, y: 0 });
           }
 
           function handleEdgeMouseLeave() {
+            edgePointerButton.current = null;
             setHoverPoint((currentPoint) =>
               currentPoint?.edgeId === edge.id ? null : currentPoint,
             );
