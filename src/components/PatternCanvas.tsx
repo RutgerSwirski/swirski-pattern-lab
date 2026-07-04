@@ -35,8 +35,10 @@ type PatternCanvasProps = {
   viewport: Viewport;
   makeId: (prefix: string) => string;
   onAddDraftPoint: (point: PatternPoint) => void;
+  onBeginHistoryTransaction: () => void;
   onClearBezierSegment: (pieceId: string, startPointId: string) => void;
   onClearSelection: () => void;
+  onCommitHistoryTransaction: () => void;
   onFocusPatternPoint: (pieceId: string, pointId: string) => void;
   onFocusPatternPoints: (pieceId: string, pointIds: string[]) => void;
   onInsertPatternPoint: (
@@ -84,8 +86,10 @@ export function PatternCanvas({
   viewport,
   makeId,
   onAddDraftPoint,
+  onBeginHistoryTransaction,
   onClearBezierSegment,
   onClearSelection,
+  onCommitHistoryTransaction,
   onFocusPatternPoint,
   onFocusPatternPoints,
   onInsertPatternPoint,
@@ -258,6 +262,8 @@ export function PatternCanvas({
               isSelected={piece.id === selectedPieceId}
               piece={piece}
               screenToPiecePoint={screenToPiecePoint}
+              onBeginHistoryTransaction={onBeginHistoryTransaction}
+              onCommitHistoryTransaction={onCommitHistoryTransaction}
               onOpenBezierContextMenu={(event, startPointId) => {
                 event.cancelBubble = true;
                 event.evt.preventDefault();

@@ -84,6 +84,8 @@ export function usePatternEditor() {
   const [focusedPoint, setFocusedPoint] = useState<FocusedPoint | null>(null);
   const idSeed = useRef(crypto.randomUUID());
   const nextId = useRef(1);
+  const historyTransactionStart = useRef<PatternPiece[] | null>(null);
+  const historyTransactionChanged = useRef(false);
   const pieces = pieceHistory.present;
   const selectedPiece =
     pieces.find((piece) => piece.id === selectedPieceId) ?? null;
@@ -105,6 +107,15 @@ export function usePatternEditor() {
           return currentHistory;
         }
 
+        if (historyTransactionStart.current) {
+          historyTransactionChanged.current = true;
+
+          return {
+            ...currentHistory,
+            present: nextPieces,
+          };
+        }
+
         return {
           past: [...currentHistory.past, currentHistory.present].slice(
             -MAX_HISTORY_STEPS,
@@ -117,7 +128,47 @@ export function usePatternEditor() {
     [],
   );
 
+  const beginHistoryTransaction = useCallback(() => {
+    setPieceHistory((currentHistory) => {
+      if (!historyTransactionStart.current) {
+        historyTransactionStart.current = currentHistory.present;
+        historyTransactionChanged.current = false;
+      }
+
+      return currentHistory;
+    });
+  }, []);
+
+  const commitHistoryTransaction = useCallback(() => {
+    setPieceHistory((currentHistory) => {
+      const transactionStart = historyTransactionStart.current;
+      const didChange = historyTransactionChanged.current;
+
+      historyTransactionStart.current = null;
+      historyTransactionChanged.current = false;
+
+      if (
+        !transactionStart ||
+        !didChange ||
+        transactionStart === currentHistory.present
+      ) {
+        return currentHistory;
+      }
+
+      return {
+        past: [...currentHistory.past, transactionStart].slice(
+          -MAX_HISTORY_STEPS,
+        ),
+        present: currentHistory.present,
+        future: [],
+      };
+    });
+  }, []);
+
   const undo = useCallback(() => {
+    historyTransactionStart.current = null;
+    historyTransactionChanged.current = false;
+
     setPieceHistory((currentHistory) => {
       const previousPieces =
         currentHistory.past[currentHistory.past.length - 1];
@@ -136,6 +187,9 @@ export function usePatternEditor() {
   }, []);
 
   const redo = useCallback(() => {
+    historyTransactionStart.current = null;
+    historyTransactionChanged.current = false;
+
     setPieceHistory((currentHistory) => {
       const nextPieces = currentHistory.future[0];
 
@@ -485,7 +539,7 @@ export function usePatternEditor() {
     );
   }
 
-  function deletePatternPoints(pieceId: string, pointIds: string[]) {
+  const deletePatternPoints = useCallback((pieceId: string, pointIds: string[]) => {
     const idsToDelete = new Set(pointIds);
 
     updatePieces((currentPieces) => {
@@ -515,7 +569,7 @@ export function usePatternEditor() {
     });
 
     setFocusedPoint(null);
-  }
+  }, [updatePieces]);
 
   function updatePiecePosition(pieceId: string, x: number, y: number) {
     updatePieces((currentPieces) =>
@@ -725,8 +779,10 @@ export function usePatternEditor() {
 
   return {
     activeTool,
+    beginHistoryTransaction,
     canRedo,
     canUndo,
+    commitHistoryTransaction,
     draftCursor,
     draftPoints,
     focusedPoint,

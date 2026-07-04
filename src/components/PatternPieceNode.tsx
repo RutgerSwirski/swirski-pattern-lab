@@ -29,6 +29,8 @@ type PatternPieceNodeProps = {
     event: Konva.KonvaEventObject<PointerEvent>,
     startPointId: string,
   ) => void;
+  onBeginHistoryTransaction: () => void;
+  onCommitHistoryTransaction: () => void;
   onFocusPatternPoint: (pieceId: string, pointId: string) => void;
   onFocusPatternPoints: (pieceId: string, pointIds: string[]) => void;
   onInsertPatternPoint: (
@@ -67,6 +69,8 @@ export function PatternPieceNode({
   piece,
   screenToPiecePoint,
   onOpenBezierContextMenu,
+  onBeginHistoryTransaction,
+  onCommitHistoryTransaction,
   onFocusPatternPoint,
   onFocusPatternPoints,
   onInsertPatternPoint,
@@ -167,6 +171,7 @@ export function PatternPieceNode({
         }
       }}
       onDragStart={() => {
+        onBeginHistoryTransaction();
         onSelectPiece(piece.id);
       }}
       onDragMove={(event) => {
@@ -186,6 +191,7 @@ export function PatternPieceNode({
 
         onUpdatePiecePosition(piece.id, x, y);
         event.target.position({ x, y });
+        onCommitHistoryTransaction();
       }}
     >
       <Shape
@@ -350,6 +356,7 @@ export function PatternPieceNode({
             event.cancelBubble = true;
             edgePointerButton.current = null;
             event.target.position({ x: 0, y: 0 });
+            onCommitHistoryTransaction();
           }
 
           function handleEdgeMouseLeave() {
@@ -387,6 +394,7 @@ export function PatternPieceNode({
               onMouseLeave={handleEdgeMouseLeave}
               onDragStart={(event) => {
                 event.cancelBubble = true;
+                onBeginHistoryTransaction();
                 edgeDragMoved.current = false;
               }}
               onDragMove={handleEdgeDragMove}
@@ -525,6 +533,10 @@ export function PatternPieceNode({
               event.cancelBubble = true;
               onFocusPatternPoint(piece.id, point.id);
             }}
+            onDragStart={(event) => {
+              event.cancelBubble = true;
+              onBeginHistoryTransaction();
+            }}
             onDragMove={(event) => {
               event.cancelBubble = true;
 
@@ -544,6 +556,7 @@ export function PatternPieceNode({
 
               onUpdatePatternPoint(piece.id, point.id, x, y);
               event.target.position({ x, y });
+              onCommitHistoryTransaction();
             }}
           />
         ))}
@@ -589,6 +602,10 @@ export function PatternPieceNode({
                 onTouchStart={(event) => {
                   event.cancelBubble = true;
                 }}
+                onDragStart={(event) => {
+                  event.cancelBubble = true;
+                  onBeginHistoryTransaction();
+                }}
                 onDragMove={(event) => {
                   event.cancelBubble = true;
                   onUpdateCurveHandle(
@@ -606,6 +623,7 @@ export function PatternPieceNode({
                     "curveIn",
                     event.target.position(),
                   );
+                  onCommitHistoryTransaction();
                 }}
               />
 
@@ -623,6 +641,10 @@ export function PatternPieceNode({
                 onTouchStart={(event) => {
                   event.cancelBubble = true;
                 }}
+                onDragStart={(event) => {
+                  event.cancelBubble = true;
+                  onBeginHistoryTransaction();
+                }}
                 onDragMove={(event) => {
                   event.cancelBubble = true;
                   onUpdateCurveHandle(
@@ -640,6 +662,7 @@ export function PatternPieceNode({
                     "curveOut",
                     event.target.position(),
                   );
+                  onCommitHistoryTransaction();
                 }}
               />
 

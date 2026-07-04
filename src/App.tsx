@@ -94,8 +94,10 @@ function App() {
         onAddDraftPoint={(point) =>
           editor.setDraftPoints((currentPoints) => [...currentPoints, point])
         }
+        onBeginHistoryTransaction={editor.beginHistoryTransaction}
         onClearSelection={editor.clearSelection}
         onClearBezierSegment={editor.clearBezierSegment}
+        onCommitHistoryTransaction={editor.commitHistoryTransaction}
         onFocusPatternPoint={editor.focusPatternPoint}
         onFocusPatternPoints={editor.focusPatternPoints}
         onInsertPatternPoint={editor.insertPatternPoint}
