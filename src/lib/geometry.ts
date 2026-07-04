@@ -34,11 +34,11 @@ export function mirrorPatternPoint(
   return {
     ...point,
     ...mirrorPointPosition(point, axisX),
-    curveIn: point.curveOut
-      ? mirrorPointPosition(point.curveOut, axisX)
-      : undefined,
-    curveOut: point.curveIn
+    curveIn: point.curveIn
       ? mirrorPointPosition(point.curveIn, axisX)
+      : undefined,
+    curveOut: point.curveOut
+      ? mirrorPointPosition(point.curveOut, axisX)
       : undefined,
   };
 }

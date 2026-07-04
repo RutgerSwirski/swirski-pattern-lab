@@ -4,6 +4,11 @@ import { PatternCanvas } from "./components/PatternCanvas";
 import { PieceInspector } from "./components/PieceInspector";
 import { Toolbar } from "./components/Toolbar";
 import { mirrorPointPosition } from "./lib/geometry";
+import {
+  createSymmetricPiecePair,
+  getSymmetricLocalPosition,
+  getSymmetricPatternPoint,
+} from "./lib/symmetry";
 import type {
   Camera,
   PatternPiece,
@@ -55,41 +60,6 @@ function getPiecePair(pieces: PatternPiece[], pieceId: string): PiecePair | null
     linkedPiece: editedPiece.symmetry
       ? pieces.find((piece) => piece.id === editedPiece.symmetry?.pairId) ?? null
       : null,
-  };
-}
-
-function getSymmetricLocalPosition(
-  point: PointPosition,
-  editedPiece: PatternPiece,
-  linkedPiece: PatternPiece,
-) {
-  const axisX = editedPiece.symmetry?.axisX ?? 0;
-  const worldPoint = {
-    x: editedPiece.x + point.x,
-    y: editedPiece.y + point.y,
-  };
-  const mirroredWorldPoint = mirrorPointPosition(worldPoint, axisX);
-
-  return {
-    x: mirroredWorldPoint.x - linkedPiece.x,
-    y: mirroredWorldPoint.y - linkedPiece.y,
-  };
-}
-
-function getSymmetricPatternPoint(
-  point: PatternPoint,
-  editedPiece: PatternPiece,
-  linkedPiece: PatternPiece,
-) {
-  return {
-    ...point,
-    ...getSymmetricLocalPosition(point, editedPiece, linkedPiece),
-    curveIn: point.curveOut
-      ? getSymmetricLocalPosition(point.curveOut, editedPiece, linkedPiece)
-      : undefined,
-    curveOut: point.curveIn
-      ? getSymmetricLocalPosition(point.curveIn, editedPiece, linkedPiece)
-      : undefined,
   };
 }
 
@@ -267,7 +237,6 @@ function App() {
           return piece;
         }
 
-        const linkedHandle = handle === "curveIn" ? "curveOut" : "curveIn";
         const linkedPosition =
           piece.id === pair.linkedPiece?.id && pair.linkedPiece
             ? getSymmetricLocalPosition(
@@ -283,8 +252,7 @@ function App() {
             point.id === pointId
               ? {
                   ...point,
-                  [piece.id === pair.linkedPiece?.id ? linkedHandle : handle]:
-                    linkedPosition,
+                  [handle]: linkedPosition,
                 }
               : point,
           ),
@@ -428,40 +396,11 @@ function App() {
       return;
     }
 
-    const minX = Math.min(...selectedPiece.points.map((point) => point.x));
-    const maxX = Math.max(...selectedPiece.points.map((point) => point.x));
-    const pieceWidth = maxX - minX;
     const mirroredPieceId = makeId("piece");
-    const mirroredPieceX = selectedPiece.x + pieceWidth + 80;
-    const axisX = (selectedPiece.x + mirroredPieceX) / 2;
-
-    const sourcePiece = {
-      ...selectedPiece,
-      symmetry: {
-        pairId: mirroredPieceId,
-        role: "source" as const,
-        axisX,
-      },
-    };
-
-    const mirroredPiece: PatternPiece = {
-      ...selectedPiece,
-      id: mirroredPieceId,
-      name: `${selectedPiece.name} Mirror`,
-      x: mirroredPieceX,
-      symmetry: {
-        pairId: selectedPiece.id,
-        role: "mirror",
-        axisX,
-      },
-      points: selectedPiece.points.map((point) =>
-        getSymmetricPatternPoint(point, sourcePiece, {
-          ...sourcePiece,
-          id: mirroredPieceId,
-          x: mirroredPieceX,
-        }),
-      ),
-    };
+    const { sourcePiece, mirroredPiece } = createSymmetricPiecePair(
+      selectedPiece,
+      mirroredPieceId,
+    );
 
     setPieces((currentPieces) => [
       ...currentPieces.map((piece) =>
