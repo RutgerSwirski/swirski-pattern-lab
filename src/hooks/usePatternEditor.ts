@@ -17,7 +17,7 @@ import type {
 
 type FocusedPoint = {
   pieceId: string;
-  pointId: string;
+  pointIds: string[];
 };
 
 type PiecePair = {
@@ -210,9 +210,9 @@ export function usePatternEditor() {
     );
   }
 
-  function focusPatternPoint(pieceId: string, pointId: string) {
+  function focusPatternPoints(pieceId: string, pointIds: string[]) {
     setSelectedPieceId(pieceId);
-    setFocusedPoint({ pieceId, pointId });
+    setFocusedPoint({ pieceId, pointIds });
 
     updatePieces((currentPieces) =>
       currentPieces.map((piece) => {
@@ -222,59 +222,64 @@ export function usePatternEditor() {
           return piece;
         }
 
-        const pointIndex = pair.editedPiece.points.findIndex(
-          (point) => point.id === pointId,
-        );
-
-        if (pointIndex === -1) {
-          return piece;
-        }
-
-        const point = pair.editedPiece.points[pointIndex];
-
-        if (point.curveIn && point.curveOut) {
-          return piece;
-        }
-
-        const previous =
-          pair.editedPiece.points[
-            (pointIndex - 1 + pair.editedPiece.points.length) %
-              pair.editedPiece.points.length
-          ];
-        const next =
-          pair.editedPiece.points[
-            (pointIndex + 1) % pair.editedPiece.points.length
-          ];
-
-        const updatedSourcePoint = {
-          ...point,
-          curveIn: point.curveIn ?? {
-            x: point.x + (previous.x - point.x) / 3,
-            y: point.y + (previous.y - point.y) / 3,
-          },
-          curveOut: point.curveOut ?? {
-            x: point.x + (next.x - point.x) / 3,
-            y: point.y + (next.y - point.y) / 3,
-          },
-        };
-
-        const updatedPoint =
-          piece.id === pair.linkedPiece?.id && pair.linkedPiece
-            ? getSymmetricPatternPoint(
-                updatedSourcePoint,
-                pair.editedPiece,
-                pair.linkedPiece,
-              )
-            : updatedSourcePoint;
-
         return {
           ...piece,
-          points: piece.points.map((currentPoint) =>
-            currentPoint.id === pointId ? updatedPoint : currentPoint,
-          ),
+          points: piece.points.map((currentPoint) => {
+            if (!pointIds.includes(currentPoint.id)) {
+              return currentPoint;
+            }
+
+            const pointIndex = pair.editedPiece.points.findIndex(
+              (point) => point.id === currentPoint.id,
+            );
+
+            if (pointIndex === -1) {
+              return currentPoint;
+            }
+
+            const point = pair.editedPiece.points[pointIndex];
+
+            if (point.curveIn && point.curveOut) {
+              return currentPoint;
+            }
+
+            const previous =
+              pair.editedPiece.points[
+                (pointIndex - 1 + pair.editedPiece.points.length) %
+                  pair.editedPiece.points.length
+              ];
+            const next =
+              pair.editedPiece.points[
+                (pointIndex + 1) % pair.editedPiece.points.length
+              ];
+
+            const updatedSourcePoint = {
+              ...point,
+              curveIn: point.curveIn ?? {
+                x: point.x + (previous.x - point.x) / 3,
+                y: point.y + (previous.y - point.y) / 3,
+              },
+              curveOut: point.curveOut ?? {
+                x: point.x + (next.x - point.x) / 3,
+                y: point.y + (next.y - point.y) / 3,
+              },
+            };
+
+            return piece.id === pair.linkedPiece?.id && pair.linkedPiece
+              ? getSymmetricPatternPoint(
+                  updatedSourcePoint,
+                  pair.editedPiece,
+                  pair.linkedPiece,
+                )
+              : updatedSourcePoint;
+          }),
         };
       }),
     );
+  }
+
+  function focusPatternPoint(pieceId: string, pointId: string) {
+    focusPatternPoints(pieceId, [pointId]);
   }
 
   function updateCurveHandle(
@@ -403,12 +408,22 @@ export function usePatternEditor() {
       ),
     );
 
-    setFocusedPoint((currentFocusedPoint) =>
-      currentFocusedPoint?.pieceId === pieceId &&
-      currentFocusedPoint.pointId === pointId
-        ? null
-        : currentFocusedPoint,
-    );
+    setFocusedPoint((currentFocusedPoint) => {
+      if (currentFocusedPoint?.pieceId !== pieceId) {
+        return currentFocusedPoint;
+      }
+
+      const pointIds = currentFocusedPoint.pointIds.filter(
+        (currentPointId) => currentPointId !== pointId,
+      );
+
+      return pointIds.length > 0
+        ? {
+            ...currentFocusedPoint,
+            pointIds,
+          }
+        : null;
+    });
   }, [pieces, updatePieces]);
 
   function updatePiecePosition(pieceId: string, x: number, y: number) {
@@ -561,7 +576,9 @@ export function usePatternEditor() {
 
       if (event.key === "Delete" || event.key === "Backspace") {
         event.preventDefault();
-        deletePatternPoint(focusedPoint.pieceId, focusedPoint.pointId);
+        focusedPoint.pointIds.forEach((pointId) => {
+          deletePatternPoint(focusedPoint.pieceId, pointId);
+        });
       }
     }
 
@@ -626,6 +643,7 @@ export function usePatternEditor() {
     createSymmetricPiece,
     finishDraftPiece,
     focusPatternPoint,
+    focusPatternPoints,
     insertPatternPoint,
     makeId,
     redo,

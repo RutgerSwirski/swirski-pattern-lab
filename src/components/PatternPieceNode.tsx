@@ -17,7 +17,7 @@ import type { Camera, PatternPiece, PointPosition, Tool } from "../types";
 type PatternPieceNodeProps = {
   activeTool: Tool;
   camera: Camera;
-  focusedPointId: string | null;
+  focusedPointIds: string[];
   isSelected: boolean;
   piece: PatternPiece;
   screenToPiecePoint: (
@@ -29,6 +29,7 @@ type PatternPieceNodeProps = {
     startPointId: string,
   ) => void;
   onFocusPatternPoint: (pieceId: string, pointId: string) => void;
+  onFocusPatternPoints: (pieceId: string, pointIds: string[]) => void;
   onInsertPatternPoint: (
     pieceId: string,
     afterPointId: string,
@@ -53,12 +54,13 @@ type PatternPieceNodeProps = {
 export function PatternPieceNode({
   activeTool,
   camera,
-  focusedPointId,
+  focusedPointIds,
   isSelected,
   piece,
   screenToPiecePoint,
   onOpenBezierContextMenu,
   onFocusPatternPoint,
+  onFocusPatternPoints,
   onInsertPatternPoint,
   onSelectPiece,
   onUpdatePatternPoint,
@@ -193,6 +195,11 @@ export function PatternPieceNode({
             event: Konva.KonvaEventObject<MouseEvent | TouchEvent>,
           ) {
             event.cancelBubble = true;
+
+            if ("altKey" in event.evt && !event.evt.altKey) {
+              onFocusPatternPoints(piece.id, [edge.start.id, edge.end.id]);
+              return;
+            }
 
             const pointer = event.target.getStage()?.getPointerPosition();
 
@@ -366,7 +373,11 @@ export function PatternPieceNode({
 
       {isSelected &&
         piece.points.map((point) => {
-          if (point.id !== focusedPointId || !point.curveIn || !point.curveOut) {
+          if (
+            !focusedPointIds.includes(point.id) ||
+            !point.curveIn ||
+            !point.curveOut
+          ) {
             return null;
           }
 

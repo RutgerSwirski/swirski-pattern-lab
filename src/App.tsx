@@ -84,10 +84,10 @@ function App() {
         lastPointerPosition={lastPointerPosition}
         makeId={editor.makeId}
         pieces={editor.pieces}
-        focusedPointId={
+        focusedPointIds={
           editor.focusedPoint?.pieceId === editor.selectedPieceId
-            ? editor.focusedPoint.pointId
-            : null
+            ? editor.focusedPoint.pointIds
+            : []
         }
         selectedPieceId={editor.selectedPieceId}
         viewport={viewport}
@@ -97,6 +97,7 @@ function App() {
         onClearSelection={editor.clearSelection}
         onClearBezierSegment={editor.clearBezierSegment}
         onFocusPatternPoint={editor.focusPatternPoint}
+        onFocusPatternPoints={editor.focusPatternPoints}
         onInsertPatternPoint={editor.insertPatternPoint}
         onSelectPiece={editor.selectPiece}
         onSetCamera={setCamera}

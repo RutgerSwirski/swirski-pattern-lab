@@ -30,7 +30,7 @@ type PatternCanvasProps = {
   isPanning: boolean;
   lastPointerPosition: PointPosition | null;
   pieces: PatternPiece[];
-  focusedPointId: string | null;
+  focusedPointIds: string[];
   selectedPieceId: string | null;
   viewport: Viewport;
   makeId: (prefix: string) => string;
@@ -38,6 +38,7 @@ type PatternCanvasProps = {
   onClearBezierSegment: (pieceId: string, startPointId: string) => void;
   onClearSelection: () => void;
   onFocusPatternPoint: (pieceId: string, pointId: string) => void;
+  onFocusPatternPoints: (pieceId: string, pointIds: string[]) => void;
   onInsertPatternPoint: (
     pieceId: string,
     afterPointId: string,
@@ -71,7 +72,7 @@ export function PatternCanvas({
   isPanning,
   lastPointerPosition,
   pieces,
-  focusedPointId,
+  focusedPointIds,
   selectedPieceId,
   viewport,
   makeId,
@@ -79,6 +80,7 @@ export function PatternCanvas({
   onClearBezierSegment,
   onClearSelection,
   onFocusPatternPoint,
+  onFocusPatternPoints,
   onInsertPatternPoint,
   onSelectPiece,
   onSetCamera,
@@ -244,7 +246,7 @@ export function PatternCanvas({
               key={piece.id}
               activeTool={activeTool}
               camera={camera}
-              focusedPointId={focusedPointId}
+              focusedPointIds={focusedPointIds}
               isSelected={piece.id === selectedPieceId}
               piece={piece}
               screenToPiecePoint={screenToPiecePoint}
@@ -261,6 +263,7 @@ export function PatternCanvas({
                 });
               }}
               onFocusPatternPoint={onFocusPatternPoint}
+              onFocusPatternPoints={onFocusPatternPoints}
               onInsertPatternPoint={onInsertPatternPoint}
               onSelectPiece={onSelectPiece}
               onUpdatePatternPoint={onUpdatePatternPoint}
