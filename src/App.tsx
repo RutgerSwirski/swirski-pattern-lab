@@ -4,6 +4,7 @@ import { PatternCanvas } from "./components/PatternCanvas";
 import { PieceInspector } from "./components/PieceInspector";
 import { Toolbar } from "./components/Toolbar";
 import { mirrorPointPosition } from "./lib/geometry";
+import { clearBezierSegmentHandles } from "./lib/patternEditing";
 import {
   createSymmetricPiecePair,
   getSymmetricLocalPosition,
@@ -256,6 +257,23 @@ function App() {
                 }
               : point,
           ),
+        };
+      }),
+    );
+  }
+
+  function clearBezierSegment(pieceId: string, startPointId: string) {
+    setPieces((currentPieces) =>
+      currentPieces.map((piece) => {
+        const pair = getPiecePair(currentPieces, pieceId);
+
+        if (!pair || (piece.id !== pieceId && piece.id !== pair.linkedPiece?.id)) {
+          return piece;
+        }
+
+        return {
+          ...piece,
+          points: clearBezierSegmentHandles(piece.points, startPointId),
         };
       }),
     );
@@ -568,6 +586,7 @@ function App() {
           setDraftPoints((currentPoints) => [...currentPoints, point])
         }
         onClearSelection={clearSelection}
+        onClearBezierSegment={clearBezierSegment}
         onFocusPatternPoint={focusPatternPoint}
         onInsertPatternPoint={insertPatternPoint}
         onSelectPiece={selectPiece}

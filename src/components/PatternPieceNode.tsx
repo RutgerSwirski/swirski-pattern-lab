@@ -24,6 +24,10 @@ type PatternPieceNodeProps = {
     piece: PatternPiece,
     screenPoint: PointPosition,
   ) => PointPosition;
+  onOpenBezierContextMenu: (
+    event: Konva.KonvaEventObject<PointerEvent>,
+    startPointId: string,
+  ) => void;
   onFocusPatternPoint: (pieceId: string, pointId: string) => void;
   onInsertPatternPoint: (
     pieceId: string,
@@ -53,6 +57,7 @@ export function PatternPieceNode({
   isSelected,
   piece,
   screenToPiecePoint,
+  onOpenBezierContextMenu,
   onFocusPatternPoint,
   onInsertPatternPoint,
   onSelectPiece,
@@ -75,6 +80,7 @@ export function PatternPieceNode({
         id: `${start.id}-${end.id}`,
         start,
         end,
+        isBezier: Boolean(start.curveOut || end.curveIn),
         length,
         midpoint: labelGeometry.midpoint,
         normal: labelGeometry.normal,
@@ -220,6 +226,13 @@ export function PatternPieceNode({
               hitStrokeWidth={14 / camera.scale}
               onDblClick={handleInsertPoint}
               onDblTap={handleInsertPoint}
+              onContextMenu={
+                edge.isBezier
+                  ? (event) => {
+                      onOpenBezierContextMenu(event, edge.start.id);
+                    }
+                  : undefined
+              }
             />
           );
         })}

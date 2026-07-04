@@ -1,4 +1,5 @@
 import type { Dispatch, SetStateAction } from "react";
+import { useState } from "react";
 import { Group, Layer, Stage } from "react-konva";
 
 import { snapToGrid } from "../lib/geometry";
@@ -34,6 +35,7 @@ type PatternCanvasProps = {
   viewport: Viewport;
   makeId: (prefix: string) => string;
   onAddDraftPoint: (point: PatternPoint) => void;
+  onClearBezierSegment: (pieceId: string, startPointId: string) => void;
   onClearSelection: () => void;
   onFocusPatternPoint: (pieceId: string, pointId: string) => void;
   onInsertPatternPoint: (
@@ -74,6 +76,7 @@ export function PatternCanvas({
   viewport,
   makeId,
   onAddDraftPoint,
+  onClearBezierSegment,
   onClearSelection,
   onFocusPatternPoint,
   onInsertPatternPoint,
@@ -86,6 +89,13 @@ export function PatternCanvas({
   onUpdatePatternPoint,
   onUpdatePiecePosition,
 }: PatternCanvasProps) {
+  const [contextMenu, setContextMenu] = useState<{
+    pieceId: string;
+    startPointId: string;
+    x: number;
+    y: number;
+  } | null>(null);
+
   function screenToPatternPoint(screenPoint: PointPosition) {
     return {
       x: snapToGrid((screenPoint.x - camera.x) / (MM_TO_PX * camera.scale)),
@@ -101,10 +111,16 @@ export function PatternCanvas({
   }
 
   return (
-    <Stage
-      width={viewport.width}
-      height={viewport.height}
-      onWheel={(event) => {
+    <>
+      <div
+        onContextMenu={(event) => {
+          event.preventDefault();
+        }}
+      >
+        <Stage
+          width={viewport.width}
+          height={viewport.height}
+          onWheel={(event) => {
         event.evt.preventDefault();
 
         const stage = event.target.getStage();
@@ -145,8 +161,10 @@ export function PatternCanvas({
             y: pointer.y - worldPointUnderCursor.y * newScale,
           };
         });
-      }}
-      onMouseDown={(event) => {
+          }}
+          onMouseDown={(event) => {
+        setContextMenu(null);
+
         const stage = event.target.getStage();
 
         if (!stage) {
@@ -176,8 +194,8 @@ export function PatternCanvas({
           id: makeId("point"),
           ...point,
         });
-      }}
-      onMouseMove={(event) => {
+          }}
+          onMouseMove={(event) => {
         const pointer = event.target.getStage()?.getPointerPosition();
 
         if (!pointer) {
@@ -202,16 +220,16 @@ export function PatternCanvas({
         }));
 
         onSetLastPointerPosition(pointer);
-      }}
-      onMouseUp={() => {
+          }}
+          onMouseUp={() => {
         onSetIsPanning(false);
         onSetLastPointerPosition(null);
-      }}
-      onMouseLeave={() => {
+          }}
+          onMouseLeave={() => {
         onSetIsPanning(false);
         onSetLastPointerPosition(null);
-      }}
-    >
+          }}
+        >
       <GridLayer camera={camera} viewport={viewport} />
 
       <Layer>
@@ -230,6 +248,18 @@ export function PatternCanvas({
               isSelected={piece.id === selectedPieceId}
               piece={piece}
               screenToPiecePoint={screenToPiecePoint}
+              onOpenBezierContextMenu={(event, startPointId) => {
+                event.cancelBubble = true;
+                event.evt.preventDefault();
+                event.evt.stopPropagation();
+
+                setContextMenu({
+                  pieceId: piece.id,
+                  startPointId,
+                  x: event.evt.clientX,
+                  y: event.evt.clientY,
+                });
+              }}
               onFocusPatternPoint={onFocusPatternPoint}
               onInsertPatternPoint={onInsertPatternPoint}
               onSelectPiece={onSelectPiece}
@@ -248,6 +278,32 @@ export function PatternCanvas({
       </Layer>
 
       <CanvasHud camera={camera} viewport={viewport} />
-    </Stage>
+
+        </Stage>
+      </div>
+
+      {contextMenu && (
+        <div
+          className="context-menu"
+          style={{
+            left: contextMenu.x,
+            top: contextMenu.y,
+          }}
+          onContextMenu={(event) => event.preventDefault()}
+        >
+          <button
+            onClick={() => {
+              onClearBezierSegment(
+                contextMenu.pieceId,
+                contextMenu.startPointId,
+              );
+              setContextMenu(null);
+            }}
+          >
+            Make line straight
+          </button>
+        </div>
+      )}
+    </>
   );
 }
