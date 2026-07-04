@@ -1,4 +1,5 @@
 import type Konva from "konva";
+import { useRef, useState } from "react";
 import { Circle, Group, Line, Rect, Shape, Text } from "react-konva";
 
 import {
@@ -36,6 +37,13 @@ type PatternPieceNodeProps = {
     point: PointPosition,
   ) => void;
   onSelectPiece: (pieceId: string) => void;
+  onTranslatePatternSegment: (
+    pieceId: string,
+    startPointId: string,
+    endPointId: string,
+    deltaX: number,
+    deltaY: number,
+  ) => void;
   onUpdatePatternPoint: (
     pieceId: string,
     pointId: string,
@@ -63,10 +71,19 @@ export function PatternPieceNode({
   onFocusPatternPoints,
   onInsertPatternPoint,
   onSelectPiece,
+  onTranslatePatternSegment,
   onUpdatePatternPoint,
   onUpdateCurveHandle,
   onUpdatePiecePosition,
 }: PatternPieceNodeProps) {
+  const [hoverPoint, setHoverPoint] = useState<{
+    edgeId: string;
+    point: PointPosition;
+  } | null>(null);
+  const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const edgeDragMoved = useRef(false);
+  const edgePointerButton = useRef<number | null>(null);
+
   const edges = piece.points
     .map((start, index) => {
       const end = piece.points[(index + 1) % piece.points.length];
@@ -181,9 +198,7 @@ export function PatternPieceNode({
           );
         }}
         fill={
-          isSelected
-            ? "rgba(220, 235, 255, 0.9)"
-            : "rgba(255, 255, 255, 0.85)"
+          isSelected ? "rgba(220, 235, 255, 0.9)" : "rgba(255, 255, 255, 0.85)"
         }
         stroke={isSelected ? "#2563eb" : "#171717"}
         strokeWidth={(isSelected ? 1.5 : 1) / camera.scale}
@@ -191,37 +206,161 @@ export function PatternPieceNode({
 
       {isSelected &&
         edges.map((edge) => {
-          function handleInsertPoint(
+          function getSnappedPointOnEdge(
             event: Konva.KonvaEventObject<MouseEvent | TouchEvent>,
-          ) {
-            event.cancelBubble = true;
-
-            if ("altKey" in event.evt && !event.evt.altKey) {
-              onFocusPatternPoints(piece.id, [edge.start.id, edge.end.id]);
-              return;
+          ): PointPosition | null {
+            if (edge.isBezier) {
+              return null;
             }
 
             const pointer = event.target.getStage()?.getPointerPosition();
 
             if (!pointer) {
-              return;
+              return null;
             }
 
             const localPointer = screenToPiecePoint(piece, pointer);
-            const newPoint = getClosestPointOnSegment(
+            const closestPoint = getClosestPointOnSegment(
               localPointer,
               edge.start,
               edge.end,
             );
 
-            if (
-              getLineLength(newPoint, edge.start) < 1 ||
-              getLineLength(newPoint, edge.end) < 1
-            ) {
+            return {
+              x: snapToGrid(closestPoint.x),
+              y: snapToGrid(closestPoint.y),
+            };
+          }
+
+          function isNearEdgeEndpoint(point: PointPosition) {
+            return (
+              getLineLength(point, edge.start) < 1 ||
+              getLineLength(point, edge.end) < 1
+            );
+          }
+
+          function handleEdgeClick(
+            event: Konva.KonvaEventObject<MouseEvent | TouchEvent>,
+          ) {
+            event.cancelBubble = true;
+
+            if (edge.isBezier) {
               return;
             }
 
-            onInsertPatternPoint(piece.id, edge.start.id, newPoint);
+            if (edgePointerButton.current !== null) {
+              return;
+            }
+
+            if (edgeDragMoved.current) {
+              edgeDragMoved.current = false;
+              return;
+            }
+
+            if ("detail" in event.evt && event.evt.detail > 1) {
+              return;
+            }
+
+            const newPoint =
+              hoverPoint?.edgeId === edge.id
+                ? hoverPoint.point
+                : getSnappedPointOnEdge(event);
+
+            if (!newPoint || isNearEdgeEndpoint(newPoint)) {
+              return;
+            }
+
+            if (clickTimer.current) {
+              clearTimeout(clickTimer.current);
+            }
+
+            clickTimer.current = setTimeout(() => {
+              onInsertPatternPoint(piece.id, edge.start.id, newPoint);
+              clickTimer.current = null;
+            }, 220);
+          }
+
+          function handleEdgeDoubleClick(
+            event: Konva.KonvaEventObject<MouseEvent | TouchEvent>,
+          ) {
+            event.cancelBubble = true;
+
+            if (edgePointerButton.current !== 0) {
+              return;
+            }
+
+            if (clickTimer.current) {
+              clearTimeout(clickTimer.current);
+              clickTimer.current = null;
+            }
+
+            if ("altKey" in event.evt && event.evt.altKey && !edge.isBezier) {
+              const newPoint = getSnappedPointOnEdge(event);
+
+              if (!newPoint || isNearEdgeEndpoint(newPoint)) {
+                return;
+              }
+
+              onInsertPatternPoint(piece.id, edge.start.id, newPoint);
+              return;
+            }
+
+            onFocusPatternPoints(piece.id, [edge.start.id, edge.end.id]);
+          }
+
+          function handleEdgeHover(
+            event: Konva.KonvaEventObject<MouseEvent | TouchEvent>,
+          ) {
+            if (edge.isBezier) {
+              setHoverPoint(null);
+              return;
+            }
+
+            const newPoint = getSnappedPointOnEdge(event);
+
+            if (!newPoint || isNearEdgeEndpoint(newPoint)) {
+              setHoverPoint((currentPoint) =>
+                currentPoint?.edgeId === edge.id ? null : currentPoint,
+              );
+              return;
+            }
+
+            setHoverPoint({ edgeId: edge.id, point: newPoint });
+          }
+
+          function handleEdgeDragMove(
+            event: Konva.KonvaEventObject<DragEvent>,
+          ) {
+            event.cancelBubble = true;
+
+            const position = event.target.position();
+            const deltaX = snapToGrid(position.x);
+            const deltaY = snapToGrid(position.y);
+
+            if (deltaX === 0 && deltaY === 0) {
+              return;
+            }
+
+            edgeDragMoved.current = true;
+            onTranslatePatternSegment(
+              piece.id,
+              edge.start.id,
+              edge.end.id,
+              deltaX,
+              deltaY,
+            );
+            event.target.position({ x: 0, y: 0 });
+          }
+
+          function handleEdgeDragEnd(event: Konva.KonvaEventObject<DragEvent>) {
+            event.cancelBubble = true;
+            event.target.position({ x: 0, y: 0 });
+          }
+
+          function handleEdgeMouseLeave() {
+            setHoverPoint((currentPoint) =>
+              currentPoint?.edgeId === edge.id ? null : currentPoint,
+            );
           }
 
           return (
@@ -231,18 +370,60 @@ export function PatternPieceNode({
               stroke="rgba(37, 99, 235, 0.01)"
               strokeWidth={10 / camera.scale}
               hitStrokeWidth={14 / camera.scale}
-              onDblClick={handleInsertPoint}
-              onDblTap={handleInsertPoint}
-              onContextMenu={
-                edge.isBezier
-                  ? (event) => {
-                      onOpenBezierContextMenu(event, edge.start.id);
-                    }
-                  : undefined
-              }
+              draggable={activeTool === "select"}
+              onMouseDown={(event) => {
+                edgePointerButton.current = event.evt.button;
+
+                if (event.evt.button !== 0) {
+                  event.evt.preventDefault();
+                  event.cancelBubble = true;
+                }
+              }}
+              onTouchStart={() => {
+                edgePointerButton.current = 0;
+              }}
+              onClick={handleEdgeClick}
+              onTap={handleEdgeClick}
+              onDblClick={handleEdgeDoubleClick}
+              onDblTap={handleEdgeDoubleClick}
+              onMouseMove={handleEdgeHover}
+              onTouchMove={handleEdgeHover}
+              onMouseLeave={handleEdgeMouseLeave}
+              onDragStart={(event) => {
+                event.cancelBubble = true;
+                edgeDragMoved.current = false;
+              }}
+              onDragMove={handleEdgeDragMove}
+              onDragEnd={handleEdgeDragEnd}
+              onContextMenu={(event) => {
+                edgePointerButton.current = 2;
+                event.evt.preventDefault();
+                event.cancelBubble = true;
+
+                if (clickTimer.current) {
+                  clearTimeout(clickTimer.current);
+                  clickTimer.current = null;
+                }
+
+                if (edge.isBezier) {
+                  onOpenBezierContextMenu(event, edge.start.id);
+                }
+              }}
             />
           );
         })}
+
+      {isSelected && hoverPoint && (
+        <Circle
+          x={hoverPoint.point.x}
+          y={hoverPoint.point.y}
+          radius={4 / camera.scale}
+          fill="rgba(37, 99, 235, 0.16)"
+          stroke="#2563eb"
+          strokeWidth={1 / camera.scale}
+          listening={false}
+        />
+      )}
 
       {isSelected &&
         edges.map((edge) => {

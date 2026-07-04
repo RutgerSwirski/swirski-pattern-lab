@@ -49,6 +49,13 @@ type PatternCanvasProps = {
   onSetDraftCursor: (point: PointPosition | null) => void;
   onSetIsPanning: (isPanning: boolean) => void;
   onSetLastPointerPosition: (point: PointPosition | null) => void;
+  onTranslatePatternSegment: (
+    pieceId: string,
+    startPointId: string,
+    endPointId: string,
+    deltaX: number,
+    deltaY: number,
+  ) => void;
   onUpdateCurveHandle: (
     pieceId: string,
     pointId: string,
@@ -87,6 +94,7 @@ export function PatternCanvas({
   onSetDraftCursor,
   onSetIsPanning,
   onSetLastPointerPosition,
+  onTranslatePatternSegment,
   onUpdateCurveHandle,
   onUpdatePatternPoint,
   onUpdatePiecePosition,
@@ -266,6 +274,7 @@ export function PatternCanvas({
               onFocusPatternPoints={onFocusPatternPoints}
               onInsertPatternPoint={onInsertPatternPoint}
               onSelectPiece={onSelectPiece}
+              onTranslatePatternSegment={onTranslatePatternSegment}
               onUpdatePatternPoint={onUpdatePatternPoint}
               onUpdateCurveHandle={onUpdateCurveHandle}
               onUpdatePiecePosition={onUpdatePiecePosition}

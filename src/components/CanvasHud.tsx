@@ -23,7 +23,7 @@ export function CanvasHud({ camera, viewport }: CanvasHudProps) {
       <Text
         x={20}
         y={48}
-        text="Select: drag empty space to pan • Drag nodes to reshape • Double-click edge for curve handles • Alt+double-click edge to add point"
+        text="Select: drag empty space to pan • Click straight edge to add point • Drag edge to move it • Double-click edge for curve handles"
         fontSize={13}
         fill="#666666"
       />

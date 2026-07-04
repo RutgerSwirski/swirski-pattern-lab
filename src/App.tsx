@@ -104,6 +104,7 @@ function App() {
         onSetDraftCursor={editor.setDraftCursor}
         onSetIsPanning={setIsPanning}
         onSetLastPointerPosition={setLastPointerPosition}
+        onTranslatePatternSegment={editor.translatePatternSegment}
         onUpdateCurveHandle={editor.updateCurveHandle}
         onUpdatePatternPoint={editor.updatePatternPoint}
         onUpdatePiecePosition={editor.updatePiecePosition}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { mirrorPointPosition } from "../lib/geometry";
 import { clearBezierSegmentHandles } from "../lib/patternEditing";
@@ -52,7 +52,10 @@ function createInitialPiece(): PatternPiece {
   };
 }
 
-function getPiecePair(pieces: PatternPiece[], pieceId: string): PiecePair | null {
+function getPiecePair(
+  pieces: PatternPiece[],
+  pieceId: string,
+): PiecePair | null {
   const editedPiece = pieces.find((piece) => piece.id === pieceId);
 
   if (!editedPiece) {
@@ -62,7 +65,8 @@ function getPiecePair(pieces: PatternPiece[], pieceId: string): PiecePair | null
   return {
     editedPiece,
     linkedPiece: editedPiece.symmetry
-      ? pieces.find((piece) => piece.id === editedPiece.symmetry?.pairId) ?? null
+      ? (pieces.find((piece) => piece.id === editedPiece.symmetry?.pairId) ??
+        null)
       : null,
   };
 }
@@ -78,7 +82,7 @@ export function usePatternEditor() {
   const [draftCursor, setDraftCursor] = useState<PointPosition | null>(null);
   const [selectedPieceId, setSelectedPieceId] = useState<string | null>(null);
   const [focusedPoint, setFocusedPoint] = useState<FocusedPoint | null>(null);
-  const nextId = useRef(1);
+  const nextId = crypto.randomUUID();
   const pieces = pieceHistory.present;
   const selectedPiece =
     pieces.find((piece) => piece.id === selectedPieceId) ?? null;
@@ -86,9 +90,7 @@ export function usePatternEditor() {
   const canRedo = pieceHistory.future.length > 0;
 
   function makeId(prefix: string) {
-    const id = `${prefix}-${nextId.current}`;
-    nextId.current += 1;
-    return id;
+    return `${prefix}-${nextId}`;
   }
 
   const updatePieces = useCallback(
@@ -159,7 +161,10 @@ export function usePatternEditor() {
       currentPieces.map((piece) => {
         const pair = getPiecePair(currentPieces, pieceId);
 
-        if (!pair || (piece.id !== pieceId && piece.id !== pair.linkedPiece?.id)) {
+        if (
+          !pair ||
+          (piece.id !== pieceId && piece.id !== pair.linkedPiece?.id)
+        ) {
           return piece;
         }
 
@@ -210,6 +215,84 @@ export function usePatternEditor() {
     );
   }
 
+  function translatePatternSegment(
+    pieceId: string,
+    startPointId: string,
+    endPointId: string,
+    deltaX: number,
+    deltaY: number,
+  ) {
+    if (deltaX === 0 && deltaY === 0) {
+      return;
+    }
+
+    updatePieces((currentPieces) =>
+      currentPieces.map((piece) => {
+        const pair = getPiecePair(currentPieces, pieceId);
+
+        if (
+          !pair ||
+          (piece.id !== pieceId && piece.id !== pair.linkedPiece?.id)
+        ) {
+          return piece;
+        }
+
+        const movedPointIds = new Set([startPointId, endPointId]);
+        const updatedSourcePoints = pair.editedPiece.points.map((point) => {
+          if (!movedPointIds.has(point.id)) {
+            return point;
+          }
+
+          return {
+            ...point,
+            x: point.x + deltaX,
+            y: point.y + deltaY,
+            curveIn: point.curveIn
+              ? {
+                  x: point.curveIn.x + deltaX,
+                  y: point.curveIn.y + deltaY,
+                }
+              : undefined,
+            curveOut: point.curveOut
+              ? {
+                  x: point.curveOut.x + deltaX,
+                  y: point.curveOut.y + deltaY,
+                }
+              : undefined,
+          };
+        });
+
+        return {
+          ...piece,
+          points: piece.points.map((point) => {
+            if (!movedPointIds.has(point.id)) {
+              return point;
+            }
+
+            const updatedSourcePoint = updatedSourcePoints.find(
+              (sourcePoint) => sourcePoint.id === point.id,
+            );
+
+            if (!updatedSourcePoint) {
+              return point;
+            }
+
+            return piece.id === pair.linkedPiece?.id && pair.linkedPiece
+              ? getSymmetricPatternPoint(
+                  updatedSourcePoint,
+                  {
+                    ...pair.editedPiece,
+                    points: updatedSourcePoints,
+                  },
+                  pair.linkedPiece,
+                )
+              : updatedSourcePoint;
+          }),
+        };
+      }),
+    );
+  }
+
   function focusPatternPoints(pieceId: string, pointIds: string[]) {
     setSelectedPieceId(pieceId);
     setFocusedPoint({ pieceId, pointIds });
@@ -218,7 +301,10 @@ export function usePatternEditor() {
       currentPieces.map((piece) => {
         const pair = getPiecePair(currentPieces, pieceId);
 
-        if (!pair || (piece.id !== pieceId && piece.id !== pair.linkedPiece?.id)) {
+        if (
+          !pair ||
+          (piece.id !== pieceId && piece.id !== pair.linkedPiece?.id)
+        ) {
           return piece;
         }
 
@@ -292,7 +378,10 @@ export function usePatternEditor() {
       currentPieces.map((piece) => {
         const pair = getPiecePair(currentPieces, pieceId);
 
-        if (!pair || (piece.id !== pieceId && piece.id !== pair.linkedPiece?.id)) {
+        if (
+          !pair ||
+          (piece.id !== pieceId && piece.id !== pair.linkedPiece?.id)
+        ) {
           return piece;
         }
 
@@ -325,7 +414,10 @@ export function usePatternEditor() {
       currentPieces.map((piece) => {
         const pair = getPiecePair(currentPieces, pieceId);
 
-        if (!pair || (piece.id !== pieceId && piece.id !== pair.linkedPiece?.id)) {
+        if (
+          !pair ||
+          (piece.id !== pieceId && piece.id !== pair.linkedPiece?.id)
+        ) {
           return piece;
         }
 
@@ -351,7 +443,10 @@ export function usePatternEditor() {
       currentPieces.map((piece) => {
         const pair = getPiecePair(currentPieces, pieceId);
 
-        if (!pair || (piece.id !== pieceId && piece.id !== pair.linkedPiece?.id)) {
+        if (
+          !pair ||
+          (piece.id !== pieceId && piece.id !== pair.linkedPiece?.id)
+        ) {
           return piece;
         }
 
@@ -387,51 +482,47 @@ export function usePatternEditor() {
     );
   }
 
-  const deletePatternPoint = useCallback((pieceId: string, pointId: string) => {
-    const piece = pieces.find((currentPiece) => currentPiece.id === pieceId);
+  function deletePatternPoints(pieceId: string, pointIds: string[]) {
+    const idsToDelete = new Set(pointIds);
 
-    if (!piece || piece.points.length <= 3) {
-      return;
-    }
+    updatePieces((currentPieces) => {
+      const pair = getPiecePair(currentPieces, pieceId);
 
-    updatePieces((currentPieces) =>
-      currentPieces.map((currentPiece) =>
-        currentPiece.id === pieceId ||
-        currentPiece.id === piece.symmetry?.pairId
-          ? {
-              ...currentPiece,
-              points: currentPiece.points.filter(
-                (point) => point.id !== pointId,
-              ),
-            }
-          : currentPiece,
-      ),
-    );
-
-    setFocusedPoint((currentFocusedPoint) => {
-      if (currentFocusedPoint?.pieceId !== pieceId) {
-        return currentFocusedPoint;
+      if (!pair) {
+        return currentPieces;
       }
 
-      const pointIds = currentFocusedPoint.pointIds.filter(
-        (currentPointId) => currentPointId !== pointId,
-      );
+      if (pair.editedPiece.points.length - idsToDelete.size < 3) {
+        return currentPieces;
+      }
 
-      return pointIds.length > 0
-        ? {
-            ...currentFocusedPoint,
-            pointIds,
-          }
-        : null;
+      return currentPieces.map((piece) => {
+        const isEditedPiece = piece.id === pair.editedPiece.id;
+        const isLinkedPiece = piece.id === pair.linkedPiece?.id;
+
+        if (!isEditedPiece && !isLinkedPiece) {
+          return piece;
+        }
+
+        return {
+          ...piece,
+          points: piece.points.filter((point) => !idsToDelete.has(point.id)),
+        };
+      });
     });
-  }, [pieces, updatePieces]);
+
+    setFocusedPoint(null);
+  }
 
   function updatePiecePosition(pieceId: string, x: number, y: number) {
     updatePieces((currentPieces) =>
       currentPieces.map((piece) => {
         const pair = getPiecePair(currentPieces, pieceId);
 
-        if (!pair || (piece.id !== pieceId && piece.id !== pair.linkedPiece?.id)) {
+        if (
+          !pair ||
+          (piece.id !== pieceId && piece.id !== pair.linkedPiece?.id)
+        ) {
           return piece;
         }
 
@@ -576,18 +667,20 @@ export function usePatternEditor() {
 
       if (event.key === "Delete" || event.key === "Backspace") {
         event.preventDefault();
-        focusedPoint.pointIds.forEach((pointId) => {
-          deletePatternPoint(focusedPoint.pieceId, pointId);
-        });
+
+        deletePatternPoints(focusedPoint.pieceId, focusedPoint.pointIds);
       }
     }
 
     window.addEventListener("keydown", handleSelectedPointKeyboardShortcuts);
 
     return () => {
-      window.removeEventListener("keydown", handleSelectedPointKeyboardShortcuts);
+      window.removeEventListener(
+        "keydown",
+        handleSelectedPointKeyboardShortcuts,
+      );
     };
-  }, [deletePatternPoint, focusedPoint]);
+  }, [focusedPoint, deletePatternPoints]);
 
   useEffect(() => {
     function handleHistoryKeyboardShortcuts(event: KeyboardEvent) {
@@ -652,6 +745,7 @@ export function usePatternEditor() {
     setDraftCursor,
     setDraftPoints,
     undo,
+    translatePatternSegment,
     updateCurveHandle,
     updatePatternPoint,
     updatePieceMetadata,
