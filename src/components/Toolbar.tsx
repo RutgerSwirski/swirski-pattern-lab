@@ -2,16 +2,20 @@ import type { Tool } from "../types";
 
 type ToolbarProps = {
   activeTool: Tool;
+  canCreateSymmetry: boolean;
   draftPointCount: number;
   onCancelDraft: () => void;
+  onCreateSymmetry: () => void;
   onFinishDraft: () => void;
   onSelectTool: (tool: Tool) => void;
 };
 
 export function Toolbar({
   activeTool,
+  canCreateSymmetry,
   draftPointCount,
   onCancelDraft,
+  onCreateSymmetry,
   onFinishDraft,
   onSelectTool,
 }: ToolbarProps) {
@@ -29,6 +33,10 @@ export function Toolbar({
         onClick={() => onSelectTool("draw")}
       >
         Draw Piece
+      </button>
+
+      <button onClick={onCreateSymmetry} disabled={!canCreateSymmetry}>
+        Mirror
       </button>
 
       {activeTool === "draw" && (

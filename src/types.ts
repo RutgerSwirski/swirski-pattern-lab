@@ -19,6 +19,11 @@ export type PatternPiece = {
   points: PatternPoint[];
   x: number;
   y: number;
+  symmetry?: {
+    pairId: string;
+    role: "source" | "mirror";
+    axisX: number;
+  };
 };
 
 export type Tool = "select" | "draw";

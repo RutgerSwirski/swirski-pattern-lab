@@ -17,6 +17,32 @@ export function getLineLength(start: PointPosition, end: PointPosition) {
   return Math.hypot(end.x - start.x, end.y - start.y);
 }
 
+export function mirrorPointPosition(
+  point: PointPosition,
+  axisX: number,
+): PointPosition {
+  return {
+    x: axisX * 2 - point.x,
+    y: point.y,
+  };
+}
+
+export function mirrorPatternPoint(
+  point: PatternPoint,
+  axisX: number,
+): PatternPoint {
+  return {
+    ...point,
+    ...mirrorPointPosition(point, axisX),
+    curveIn: point.curveOut
+      ? mirrorPointPosition(point.curveOut, axisX)
+      : undefined,
+    curveOut: point.curveIn
+      ? mirrorPointPosition(point.curveIn, axisX)
+      : undefined,
+  };
+}
+
 export function getCubicPoint(
   start: PointPosition,
   controlA: PointPosition,
