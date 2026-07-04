@@ -29,12 +29,13 @@ type PatternCanvasProps = {
   isPanning: boolean;
   lastPointerPosition: PointPosition | null;
   pieces: PatternPiece[];
+  focusedPointId: string | null;
   selectedPieceId: string | null;
   viewport: Viewport;
   makeId: (prefix: string) => string;
   onAddDraftPoint: (point: PatternPoint) => void;
   onClearSelection: () => void;
-  onDeletePatternPoint: (pieceId: string, pointId: string) => void;
+  onFocusPatternPoint: (pieceId: string, pointId: string) => void;
   onInsertPatternPoint: (
     pieceId: string,
     afterPointId: string,
@@ -45,6 +46,12 @@ type PatternCanvasProps = {
   onSetDraftCursor: (point: PointPosition | null) => void;
   onSetIsPanning: (isPanning: boolean) => void;
   onSetLastPointerPosition: (point: PointPosition | null) => void;
+  onUpdateCurveHandle: (
+    pieceId: string,
+    pointId: string,
+    handle: "curveIn" | "curveOut",
+    position: PointPosition,
+  ) => void;
   onUpdatePatternPoint: (
     pieceId: string,
     pointId: string,
@@ -62,18 +69,20 @@ export function PatternCanvas({
   isPanning,
   lastPointerPosition,
   pieces,
+  focusedPointId,
   selectedPieceId,
   viewport,
   makeId,
   onAddDraftPoint,
   onClearSelection,
-  onDeletePatternPoint,
+  onFocusPatternPoint,
   onInsertPatternPoint,
   onSelectPiece,
   onSetCamera,
   onSetDraftCursor,
   onSetIsPanning,
   onSetLastPointerPosition,
+  onUpdateCurveHandle,
   onUpdatePatternPoint,
   onUpdatePiecePosition,
 }: PatternCanvasProps) {
@@ -217,13 +226,15 @@ export function PatternCanvas({
               key={piece.id}
               activeTool={activeTool}
               camera={camera}
+              focusedPointId={focusedPointId}
               isSelected={piece.id === selectedPieceId}
               piece={piece}
               screenToPiecePoint={screenToPiecePoint}
-              onDeletePatternPoint={onDeletePatternPoint}
+              onFocusPatternPoint={onFocusPatternPoint}
               onInsertPatternPoint={onInsertPatternPoint}
               onSelectPiece={onSelectPiece}
               onUpdatePatternPoint={onUpdatePatternPoint}
+              onUpdateCurveHandle={onUpdateCurveHandle}
               onUpdatePiecePosition={onUpdatePiecePosition}
             />
           ))}

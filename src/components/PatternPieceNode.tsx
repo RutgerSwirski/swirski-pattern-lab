@@ -6,7 +6,9 @@ import {
   getClosestPointOnSegment,
   getLineLength,
   getPointAngle,
-  getReadableLineRotation,
+  getPointAngleVectors,
+  getSegmentLabelGeometry,
+  getSegmentLength,
   snapToGrid,
 } from "../lib/geometry";
 import { MM_TO_PX } from "../lib/patternConfig";
@@ -15,13 +17,14 @@ import type { Camera, PatternPiece, PointPosition, Tool } from "../types";
 type PatternPieceNodeProps = {
   activeTool: Tool;
   camera: Camera;
+  focusedPointId: string | null;
   isSelected: boolean;
   piece: PatternPiece;
   screenToPiecePoint: (
     piece: PatternPiece,
     screenPoint: PointPosition,
   ) => PointPosition;
-  onDeletePatternPoint: (pieceId: string, pointId: string) => void;
+  onFocusPatternPoint: (pieceId: string, pointId: string) => void;
   onInsertPatternPoint: (
     pieceId: string,
     afterPointId: string,
@@ -34,47 +37,48 @@ type PatternPieceNodeProps = {
     x: number,
     y: number,
   ) => void;
+  onUpdateCurveHandle: (
+    pieceId: string,
+    pointId: string,
+    handle: "curveIn" | "curveOut",
+    position: PointPosition,
+  ) => void;
   onUpdatePiecePosition: (pieceId: string, x: number, y: number) => void;
 };
 
 export function PatternPieceNode({
   activeTool,
   camera,
+  focusedPointId,
   isSelected,
   piece,
   screenToPiecePoint,
-  onDeletePatternPoint,
+  onFocusPatternPoint,
   onInsertPatternPoint,
   onSelectPiece,
   onUpdatePatternPoint,
+  onUpdateCurveHandle,
   onUpdatePiecePosition,
 }: PatternPieceNodeProps) {
   const edges = piece.points
     .map((start, index) => {
       const end = piece.points[(index + 1) % piece.points.length];
-      const length = getLineLength(start, end);
+      const chordLength = getLineLength(start, end);
+      const length = getSegmentLength(start, end);
+      const labelGeometry = getSegmentLabelGeometry(start, end);
 
-      if (length === 0) {
+      if (chordLength === 0 || !labelGeometry) {
         return null;
       }
-
-      const dx = end.x - start.x;
-      const dy = end.y - start.y;
 
       return {
         id: `${start.id}-${end.id}`,
         start,
         end,
         length,
-        midpoint: {
-          x: (start.x + end.x) / 2,
-          y: (start.y + end.y) / 2,
-        },
-        normal: {
-          x: -dy / length,
-          y: dx / length,
-        },
-        rotation: getReadableLineRotation(start, end),
+        midpoint: labelGeometry.midpoint,
+        normal: labelGeometry.normal,
+        rotation: labelGeometry.rotation,
       };
     })
     .filter((edge) => edge !== null);
@@ -90,15 +94,11 @@ export function PatternPieceNode({
         return null;
       }
 
-      const previousVector = {
-        x: previous.x - point.x,
-        y: previous.y - point.y,
-      };
-
-      const nextVector = {
-        x: next.x - point.x,
-        y: next.y - point.y,
-      };
+      const { previousVector, nextVector } = getPointAngleVectors(
+        previous,
+        point,
+        next,
+      );
 
       const previousLength = Math.hypot(previousVector.x, previousVector.y);
       const nextLength = Math.hypot(nextVector.x, nextVector.y);
@@ -322,11 +322,11 @@ export function PatternPieceNode({
             }}
             onDblClick={(event) => {
               event.cancelBubble = true;
-              onDeletePatternPoint(piece.id, point.id);
+              onFocusPatternPoint(piece.id, point.id);
             }}
             onDblTap={(event) => {
               event.cancelBubble = true;
-              onDeletePatternPoint(piece.id, point.id);
+              onFocusPatternPoint(piece.id, point.id);
             }}
             onDragMove={(event) => {
               event.cancelBubble = true;
@@ -350,6 +350,110 @@ export function PatternPieceNode({
             }}
           />
         ))}
+
+      {isSelected &&
+        piece.points.map((point) => {
+          if (point.id !== focusedPointId || !point.curveIn || !point.curveOut) {
+            return null;
+          }
+
+          return (
+            <Group key={`curve-handles-${point.id}`}>
+              <Line
+                points={[
+                  point.curveIn.x,
+                  point.curveIn.y,
+                  point.x,
+                  point.y,
+                  point.curveOut.x,
+                  point.curveOut.y,
+                ]}
+                stroke="#059669"
+                strokeWidth={1 / camera.scale}
+                dash={[5 / camera.scale, 5 / camera.scale]}
+                listening={false}
+              />
+
+              <Circle
+                x={point.curveIn.x}
+                y={point.curveIn.y}
+                radius={4 / camera.scale}
+                fill="#ffffff"
+                stroke="#059669"
+                strokeWidth={1.25 / camera.scale}
+                draggable
+                onMouseDown={(event) => {
+                  event.cancelBubble = true;
+                }}
+                onTouchStart={(event) => {
+                  event.cancelBubble = true;
+                }}
+                onDragMove={(event) => {
+                  event.cancelBubble = true;
+                  onUpdateCurveHandle(
+                    piece.id,
+                    point.id,
+                    "curveIn",
+                    event.target.position(),
+                  );
+                }}
+                onDragEnd={(event) => {
+                  event.cancelBubble = true;
+                  onUpdateCurveHandle(
+                    piece.id,
+                    point.id,
+                    "curveIn",
+                    event.target.position(),
+                  );
+                }}
+              />
+
+              <Circle
+                x={point.curveOut.x}
+                y={point.curveOut.y}
+                radius={4 / camera.scale}
+                fill="#ffffff"
+                stroke="#059669"
+                strokeWidth={1.25 / camera.scale}
+                draggable
+                onMouseDown={(event) => {
+                  event.cancelBubble = true;
+                }}
+                onTouchStart={(event) => {
+                  event.cancelBubble = true;
+                }}
+                onDragMove={(event) => {
+                  event.cancelBubble = true;
+                  onUpdateCurveHandle(
+                    piece.id,
+                    point.id,
+                    "curveOut",
+                    event.target.position(),
+                  );
+                }}
+                onDragEnd={(event) => {
+                  event.cancelBubble = true;
+                  onUpdateCurveHandle(
+                    piece.id,
+                    point.id,
+                    "curveOut",
+                    event.target.position(),
+                  );
+                }}
+              />
+
+              <Circle
+                x={point.x}
+                y={point.y}
+                radius={6 / camera.scale}
+                fill="#ecfdf5"
+                stroke="#059669"
+                strokeWidth={1.5 / camera.scale}
+                listening={false}
+              />
+            </Group>
+          );
+        })}
 
       <Text
         x={piece.points[0].x}

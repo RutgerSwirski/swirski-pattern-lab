@@ -13,6 +13,11 @@ import type {
   Viewport,
 } from "./types";
 
+type FocusedPoint = {
+  pieceId: string;
+  pointId: string;
+};
+
 function createInitialPiece(): PatternPiece {
   return {
     id: "front-panel",
@@ -52,6 +57,7 @@ function App() {
   const [draftPoints, setDraftPoints] = useState<PatternPoint[]>([]);
   const [draftCursor, setDraftCursor] = useState<PointPosition | null>(null);
   const [selectedPieceId, setSelectedPieceId] = useState<string | null>(null);
+  const [focusedPoint, setFocusedPoint] = useState<FocusedPoint | null>(null);
   const nextId = useRef(1);
 
   function makeId(prefix: string) {
@@ -74,8 +80,108 @@ function App() {
 
         return {
           ...piece,
+          points: piece.points.map((point) => {
+            if (point.id !== pointId) {
+              return point;
+            }
+
+            const deltaX = x - point.x;
+            const deltaY = y - point.y;
+
+            return {
+              ...point,
+              x,
+              y,
+              curveIn: point.curveIn
+                ? {
+                    x: point.curveIn.x + deltaX,
+                    y: point.curveIn.y + deltaY,
+                  }
+                : undefined,
+              curveOut: point.curveOut
+                ? {
+                    x: point.curveOut.x + deltaX,
+                    y: point.curveOut.y + deltaY,
+                  }
+                : undefined,
+            };
+          }),
+        };
+      }),
+    );
+  }
+
+  function focusPatternPoint(pieceId: string, pointId: string) {
+    setSelectedPieceId(pieceId);
+    setFocusedPoint({ pieceId, pointId });
+
+    setPieces((currentPieces) =>
+      currentPieces.map((piece) => {
+        if (piece.id !== pieceId) {
+          return piece;
+        }
+
+        const pointIndex = piece.points.findIndex(
+          (point) => point.id === pointId,
+        );
+
+        if (pointIndex === -1) {
+          return piece;
+        }
+
+        const point = piece.points[pointIndex];
+
+        if (point.curveIn && point.curveOut) {
+          return piece;
+        }
+
+        const previous =
+          piece.points[(pointIndex - 1 + piece.points.length) % piece.points.length];
+        const next = piece.points[(pointIndex + 1) % piece.points.length];
+
+        return {
+          ...piece,
+          points: piece.points.map((currentPoint) =>
+            currentPoint.id === pointId
+              ? {
+                  ...currentPoint,
+                  curveIn: currentPoint.curveIn ?? {
+                    x: currentPoint.x + (previous.x - currentPoint.x) / 3,
+                    y: currentPoint.y + (previous.y - currentPoint.y) / 3,
+                  },
+                  curveOut: currentPoint.curveOut ?? {
+                    x: currentPoint.x + (next.x - currentPoint.x) / 3,
+                    y: currentPoint.y + (next.y - currentPoint.y) / 3,
+                  },
+                }
+              : currentPoint,
+          ),
+        };
+      }),
+    );
+  }
+
+  function updateCurveHandle(
+    pieceId: string,
+    pointId: string,
+    handle: "curveIn" | "curveOut",
+    position: PointPosition,
+  ) {
+    setPieces((currentPieces) =>
+      currentPieces.map((piece) => {
+        if (piece.id !== pieceId) {
+          return piece;
+        }
+
+        return {
+          ...piece,
           points: piece.points.map((point) =>
-            point.id === pointId ? { ...point, x, y } : point,
+            point.id === pointId
+              ? {
+                  ...point,
+                  [handle]: position,
+                }
+              : point,
           ),
         };
       }),
@@ -118,20 +224,33 @@ function App() {
     );
   }
 
-  function deletePatternPoint(pieceId: string, pointId: string) {
-    setPieces((currentPieces) =>
-      currentPieces.map((piece) => {
-        if (piece.id !== pieceId || piece.points.length <= 3) {
-          return piece;
-        }
+  const deletePatternPoint = useCallback((pieceId: string, pointId: string) => {
+    const piece = pieces.find((currentPiece) => currentPiece.id === pieceId);
 
-        return {
-          ...piece,
-          points: piece.points.filter((point) => point.id !== pointId),
-        };
-      }),
+    if (!piece || piece.points.length <= 3) {
+      return;
+    }
+
+    setPieces((currentPieces) =>
+      currentPieces.map((currentPiece) =>
+        currentPiece.id === pieceId
+          ? {
+              ...currentPiece,
+              points: currentPiece.points.filter(
+                (point) => point.id !== pointId,
+              ),
+            }
+          : currentPiece,
+      ),
     );
-  }
+
+    setFocusedPoint((currentFocusedPoint) =>
+      currentFocusedPoint?.pieceId === pieceId &&
+      currentFocusedPoint.pointId === pointId
+        ? null
+        : currentFocusedPoint,
+    );
+  }, [pieces]);
 
   function updatePiecePosition(pieceId: string, x: number, y: number) {
     setPieces((currentPieces) =>
@@ -163,7 +282,20 @@ function App() {
   function cancelDraftPiece() {
     setDraftPoints([]);
     setDraftCursor(null);
+    setFocusedPoint(null);
     setActiveTool("select");
+  }
+
+  function selectPiece(pieceId: string) {
+    setSelectedPieceId(pieceId);
+    setFocusedPoint((currentFocusedPoint) =>
+      currentFocusedPoint?.pieceId === pieceId ? currentFocusedPoint : null,
+    );
+  }
+
+  function clearSelection() {
+    setSelectedPieceId(null);
+    setFocusedPoint(null);
   }
 
   const finishDraftPiece = useCallback(() => {
@@ -188,6 +320,7 @@ function App() {
 
     setDraftPoints([]);
     setDraftCursor(null);
+    setFocusedPoint(null);
     setActiveTool("select");
   }, [draftPoints]);
 
@@ -229,6 +362,30 @@ function App() {
     };
   }, [activeTool, finishDraftPiece]);
 
+  useEffect(() => {
+    function handleSelectedPointKeyboardShortcuts(event: KeyboardEvent) {
+      const target = event.target;
+      const isTyping =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement;
+
+      if (isTyping || !focusedPoint) {
+        return;
+      }
+
+      if (event.key === "Delete" || event.key === "Backspace") {
+        event.preventDefault();
+        deletePatternPoint(focusedPoint.pieceId, focusedPoint.pointId);
+      }
+    }
+
+    window.addEventListener("keydown", handleSelectedPointKeyboardShortcuts);
+
+    return () => {
+      window.removeEventListener("keydown", handleSelectedPointKeyboardShortcuts);
+    };
+  }, [deletePatternPoint, focusedPoint]);
+
   const selectedPiece =
     pieces.find((piece) => piece.id === selectedPieceId) ?? null;
 
@@ -255,7 +412,7 @@ function App() {
       {selectedPiece && (
         <PieceInspector
           piece={selectedPiece}
-          onClose={() => setSelectedPieceId(null)}
+          onClose={clearSelection}
           onUpdateMetadata={updatePieceMetadata}
         />
       )}
@@ -269,19 +426,23 @@ function App() {
         lastPointerPosition={lastPointerPosition}
         makeId={makeId}
         pieces={pieces}
+        focusedPointId={
+          focusedPoint?.pieceId === selectedPieceId ? focusedPoint.pointId : null
+        }
         selectedPieceId={selectedPieceId}
         viewport={viewport}
         onAddDraftPoint={(point) =>
           setDraftPoints((currentPoints) => [...currentPoints, point])
         }
-        onClearSelection={() => setSelectedPieceId(null)}
-        onDeletePatternPoint={deletePatternPoint}
+        onClearSelection={clearSelection}
+        onFocusPatternPoint={focusPatternPoint}
         onInsertPatternPoint={insertPatternPoint}
-        onSelectPiece={setSelectedPieceId}
+        onSelectPiece={selectPiece}
         onSetCamera={setCamera}
         onSetDraftCursor={setDraftCursor}
         onSetIsPanning={setIsPanning}
         onSetLastPointerPosition={setLastPointerPosition}
+        onUpdateCurveHandle={updateCurveHandle}
         onUpdatePatternPoint={updatePatternPoint}
         onUpdatePiecePosition={updatePiecePosition}
       />

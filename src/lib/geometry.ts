@@ -17,6 +17,115 @@ export function getLineLength(start: PointPosition, end: PointPosition) {
   return Math.hypot(end.x - start.x, end.y - start.y);
 }
 
+export function getCubicPoint(
+  start: PointPosition,
+  controlA: PointPosition,
+  controlB: PointPosition,
+  end: PointPosition,
+  progress: number,
+) {
+  const inverseProgress = 1 - progress;
+  const startFactor = inverseProgress ** 3;
+  const controlAFactor = 3 * inverseProgress ** 2 * progress;
+  const controlBFactor = 3 * inverseProgress * progress ** 2;
+  const endFactor = progress ** 3;
+
+  return {
+    x:
+      start.x * startFactor +
+      controlA.x * controlAFactor +
+      controlB.x * controlBFactor +
+      end.x * endFactor,
+    y:
+      start.y * startFactor +
+      controlA.y * controlAFactor +
+      controlB.y * controlBFactor +
+      end.y * endFactor,
+  };
+}
+
+export function getCubicTangent(
+  start: PointPosition,
+  controlA: PointPosition,
+  controlB: PointPosition,
+  end: PointPosition,
+  progress: number,
+) {
+  const inverseProgress = 1 - progress;
+
+  return {
+    x:
+      3 * inverseProgress ** 2 * (controlA.x - start.x) +
+      6 * inverseProgress * progress * (controlB.x - controlA.x) +
+      3 * progress ** 2 * (end.x - controlB.x),
+    y:
+      3 * inverseProgress ** 2 * (controlA.y - start.y) +
+      6 * inverseProgress * progress * (controlB.y - controlA.y) +
+      3 * progress ** 2 * (end.y - controlB.y),
+  };
+}
+
+export function getSegmentLabelGeometry(start: PatternPoint, end: PatternPoint) {
+  const controlA = start.curveOut ?? start;
+  const controlB = end.curveIn ?? end;
+  const midpoint = getCubicPoint(start, controlA, controlB, end, 0.5);
+  const tangent = getCubicTangent(start, controlA, controlB, end, 0.5);
+  const tangentLength = getLineLength({ x: 0, y: 0 }, tangent);
+  const fallbackLength = getLineLength(start, end);
+
+  if (tangentLength === 0 && fallbackLength === 0) {
+    return null;
+  }
+
+  const direction =
+    tangentLength === 0
+      ? {
+          x: (end.x - start.x) / fallbackLength,
+          y: (end.y - start.y) / fallbackLength,
+        }
+      : {
+          x: tangent.x / tangentLength,
+          y: tangent.y / tangentLength,
+        };
+
+  return {
+    midpoint,
+    normal: {
+      x: -direction.y,
+      y: direction.x,
+    },
+    rotation: getReadablePointRotation(direction),
+  };
+}
+
+export function getSegmentLength(start: PatternPoint, end: PatternPoint) {
+  const controlA = start.curveOut ?? start;
+  const controlB = end.curveIn ?? end;
+
+  if (controlA === start && controlB === end) {
+    return getLineLength(start, end);
+  }
+
+  const sampleCount = 24;
+  let length = 0;
+  let previousPoint: PointPosition = start;
+
+  for (let index = 1; index <= sampleCount; index += 1) {
+    const point = getCubicPoint(
+      start,
+      controlA,
+      controlB,
+      end,
+      index / sampleCount,
+    );
+
+    length += getLineLength(previousPoint, point);
+    previousPoint = point;
+  }
+
+  return length;
+}
+
 export function getClosestPointOnSegment(
   point: PointPosition,
   start: PointPosition,
@@ -48,7 +157,7 @@ export function getPiecePerimeter(points: PatternPoint[]) {
   return points.reduce((total, point, index) => {
     const next = points[(index + 1) % points.length];
 
-    return total + getLineLength(point, next);
+    return total + getSegmentLength(point, next);
   }, 0);
 }
 
@@ -59,6 +168,39 @@ export function drawPatternOutline(
   cornerRadiusMm: number,
 ) {
   if (points.length === 0) {
+    return;
+  }
+
+  const hasBezierHandles = points.some(
+    (point) => point.curveIn || point.curveOut,
+  );
+
+  if (hasBezierHandles) {
+    context.beginPath();
+    context.moveTo(points[0].x, points[0].y);
+
+    points.forEach((point, index) => {
+      const next = points[(index + 1) % points.length];
+      const outHandle = point.curveOut ?? point;
+      const inHandle = next.curveIn ?? next;
+
+      if (outHandle === point && inHandle === next) {
+        context.lineTo(next.x, next.y);
+        return;
+      }
+
+      context.bezierCurveTo(
+        outHandle.x,
+        outHandle.y,
+        inHandle.x,
+        inHandle.y,
+        next.x,
+        next.y,
+      );
+    });
+
+    context.closePath();
+    context.fillStrokeShape(shape);
     return;
   }
 
@@ -127,7 +269,14 @@ export function drawPatternOutline(
 }
 
 export function getReadableLineRotation(start: PatternPoint, end: PatternPoint) {
-  let rotation = (Math.atan2(end.y - start.y, end.x - start.x) * 180) / Math.PI;
+  return getReadablePointRotation({
+    x: end.x - start.x,
+    y: end.y - start.y,
+  });
+}
+
+function getReadablePointRotation(point: PointPosition) {
+  let rotation = (Math.atan2(point.y, point.x) * 180) / Math.PI;
 
   if (rotation > 90 || rotation < -90) {
     rotation += 180;
@@ -136,20 +285,33 @@ export function getReadableLineRotation(start: PatternPoint, end: PatternPoint) 
   return rotation;
 }
 
+export function getPointAngleVectors(
+  previous: PatternPoint,
+  point: PatternPoint,
+  next: PatternPoint,
+) {
+  return {
+    previousVector: {
+      x: (point.curveIn?.x ?? previous.x) - point.x,
+      y: (point.curveIn?.y ?? previous.y) - point.y,
+    },
+    nextVector: {
+      x: (point.curveOut?.x ?? next.x) - point.x,
+      y: (point.curveOut?.y ?? next.y) - point.y,
+    },
+  };
+}
+
 export function getPointAngle(
   previous: PatternPoint,
   point: PatternPoint,
   next: PatternPoint,
 ) {
-  const previousVector = {
-    x: previous.x - point.x,
-    y: previous.y - point.y,
-  };
-
-  const nextVector = {
-    x: next.x - point.x,
-    y: next.y - point.y,
-  };
+  const { previousVector, nextVector } = getPointAngleVectors(
+    previous,
+    point,
+    next,
+  );
 
   const previousLength = Math.hypot(previousVector.x, previousVector.y);
   const nextLength = Math.hypot(nextVector.x, nextVector.y);

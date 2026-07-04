@@ -5,6 +5,8 @@ export type PointPosition = {
 
 export type PatternPoint = PointPosition & {
   id: string;
+  curveIn?: PointPosition;
+  curveOut?: PointPosition;
 };
 
 export type PatternPiece = {
