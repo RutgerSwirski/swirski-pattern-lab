@@ -86,7 +86,9 @@ export function PatternPieceNode({
   } | null>(null);
   const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const edgeDragMoved = useRef(false);
+  const edgeDragPointer = useRef<PointPosition | null>(null);
   const edgePointerButton = useRef<number | null>(null);
+  const suppressEdgeClickUntil = useRef(0);
 
   const edges = piece.points
     .map((start, index) => {
@@ -252,8 +254,8 @@ export function PatternPieceNode({
               return;
             }
 
-            if (edgeDragMoved.current) {
-              edgeDragMoved.current = false;
+            if (Date.now() < suppressEdgeClickUntil.current) {
+              suppressEdgeClickUntil.current = 0;
               return;
             }
 
@@ -311,6 +313,10 @@ export function PatternPieceNode({
           function handleEdgeHover(
             event: Konva.KonvaEventObject<MouseEvent | TouchEvent>,
           ) {
+            if (edgeDragPointer.current) {
+              return;
+            }
+
             if (edge.isBezier) {
               setHoverPoint(null);
               return;
@@ -333,15 +339,24 @@ export function PatternPieceNode({
           ) {
             event.cancelBubble = true;
 
-            const position = event.target.position();
-            const deltaX = snapToGrid(position.x);
-            const deltaY = snapToGrid(position.y);
+            const pointer = event.target.getStage()?.getPointerPosition();
+
+            if (!pointer || !edgeDragPointer.current) {
+              event.target.position({ x: 0, y: 0 });
+              return;
+            }
+
+            const localPointer = screenToPiecePoint(piece, pointer);
+            const deltaX = localPointer.x - edgeDragPointer.current.x;
+            const deltaY = localPointer.y - edgeDragPointer.current.y;
 
             if (deltaX === 0 && deltaY === 0) {
+              event.target.position({ x: 0, y: 0 });
               return;
             }
 
             edgeDragMoved.current = true;
+            edgeDragPointer.current = localPointer;
             onTranslatePatternSegment(
               piece.id,
               edge.start.id,
@@ -354,6 +369,11 @@ export function PatternPieceNode({
 
           function handleEdgeDragEnd(event: Konva.KonvaEventObject<DragEvent>) {
             event.cancelBubble = true;
+            suppressEdgeClickUntil.current = edgeDragMoved.current
+              ? Date.now() + 250
+              : 0;
+            edgeDragMoved.current = false;
+            edgeDragPointer.current = null;
             edgePointerButton.current = null;
             event.target.position({ x: 0, y: 0 });
             onCommitHistoryTransaction();
@@ -396,6 +416,13 @@ export function PatternPieceNode({
                 event.cancelBubble = true;
                 onBeginHistoryTransaction();
                 edgeDragMoved.current = false;
+                suppressEdgeClickUntil.current = 0;
+                setHoverPoint(null);
+                const pointer = event.target.getStage()?.getPointerPosition();
+                edgeDragPointer.current = pointer
+                  ? screenToPiecePoint(piece, pointer)
+                  : null;
+                event.target.position({ x: 0, y: 0 });
               }}
               onDragMove={handleEdgeDragMove}
               onDragEnd={handleEdgeDragEnd}
