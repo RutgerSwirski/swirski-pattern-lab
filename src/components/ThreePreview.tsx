@@ -157,6 +157,7 @@ function createPatternShape(
 
   const toWorldPoint = (point: PointPosition) => {
     const millimetresX = (point.x - centre.x) / patternUnitsPerMillimetre;
+
     const millimetresY = (point.y - centre.y) / patternUnitsPerMillimetre;
 
     return new THREE.Vector2(
@@ -165,15 +166,47 @@ function createPatternShape(
     );
   };
 
-  const [firstPoint, ...remainingPoints] = piece.points;
-  const first = toWorldPoint(firstPoint);
-
   const shape = new THREE.Shape();
-  shape.moveTo(first.x, first.y);
 
-  for (const point of remainingPoints) {
-    const next = toWorldPoint(point);
-    shape.lineTo(next.x, next.y);
+  const firstPoint = toWorldPoint(piece.points[0]);
+
+  shape.moveTo(firstPoint.x, firstPoint.y);
+
+  for (let index = 0; index < piece.points.length; index += 1) {
+    const start = piece.points[index];
+    const end = piece.points[(index + 1) % piece.points.length];
+
+    const endWorld = toWorldPoint(end);
+
+    const isBezier = Boolean(start.curveOut || end.curveIn);
+
+    if (!isBezier) {
+      shape.lineTo(endWorld.x, endWorld.y);
+      continue;
+    }
+
+    /*
+     * A cubic Bézier segment has:
+     *
+     * start anchor
+     * → start.curveOut
+     * → end.curveIn
+     * → end anchor
+     *
+     * Missing handles fall back to their anchor point. That means
+     * one-handle curves still render correctly.
+     */
+    const startControl = toWorldPoint(start.curveOut ?? start);
+    const endControl = toWorldPoint(end.curveIn ?? end);
+
+    shape.bezierCurveTo(
+      startControl.x,
+      startControl.y,
+      endControl.x,
+      endControl.y,
+      endWorld.x,
+      endWorld.y,
+    );
   }
 
   shape.closePath();
@@ -207,7 +240,7 @@ function PatternPiecePanel({
       return null;
     }
 
-    const nextGeometry = new THREE.ShapeGeometry(shape);
+    const nextGeometry = new THREE.ShapeGeometry(shape, 24);
 
     // Guarantees the gizmo pivot is visually centred on the fabric panel.
     nextGeometry.center();
