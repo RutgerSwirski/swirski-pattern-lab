@@ -333,6 +333,7 @@ export function usePatternEditor() {
   function clearSelection() {
     setSelectedPieceId(null);
     setFocusedPoint(null);
+    setPieceTool("move");
   }
 
   const finishDraftPiece = useCallback(() => {
