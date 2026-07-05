@@ -316,12 +316,26 @@ export function updatePieceMetadataInPieces(
 ) {
   const pair = getPiecePair(pieces, pieceId);
 
+  if (!pair?.linkedPiece) {
+    return pieces.map((piece) =>
+      piece.id === pieceId
+        ? {
+            ...piece,
+            ...metadata,
+          }
+        : piece,
+    );
+  }
+
+  const sourcePiece =
+    pair.editedPiece.symmetry?.role === "source"
+      ? pair.editedPiece
+      : pair.linkedPiece;
+  const baseName = stripMirroredSuffix(metadata.name ?? sourcePiece.name);
+
   return pieces.map((piece) =>
     piece.id === pieceId || piece.id === pair?.linkedPiece?.id
-      ? {
-          ...piece,
-          ...metadata,
-        }
+      ? applySymmetricPieceMetadata(piece, metadata, baseName)
       : piece,
   );
 }
@@ -503,4 +517,23 @@ function getSegmentBendHandles(
       y: start.y + ((end.y - start.y) * 2) / 3 + (bendOffset.y * 4) / 3,
     },
   };
+}
+
+function applySymmetricPieceMetadata(
+  piece: PatternPiece,
+  metadata: PieceMetadata,
+  baseName: string,
+) {
+  return {
+    ...piece,
+    ...metadata,
+    name:
+      piece.symmetry?.role === "mirror"
+        ? `${baseName} Mirrored`
+        : baseName,
+  };
+}
+
+function stripMirroredSuffix(name: string) {
+  return name.replace(/\s+mirrored$/i, "");
 }

@@ -10,6 +10,7 @@ import {
   insertPatternPointInPieces,
   translatePatternSegmentInPieces,
   updatePatternPointInPieces,
+  updatePieceMetadataInPieces,
   updatePiecePositionInPieces,
 } from "./patternOperations";
 import { createSymmetricPiecePair } from "./symmetry";
@@ -318,6 +319,36 @@ describe("pattern operations", () => {
       x: getPoint(mirrorAfterMove, "a").x - 10,
       y: getPoint(mirrorAfterMove, "a").y + 20,
     });
+  });
+
+  it("keeps the mirrored name suffix when source metadata changes", () => {
+    const { sourcePiece, mirroredPiece } = createSymmetricPiecePair(
+      makePiece({ name: "Front Panel" }),
+      "mirror",
+    );
+    const [updatedSource, updatedMirror] = updatePieceMetadataInPieces(
+      [sourcePiece, mirroredPiece],
+      sourcePiece.id,
+      { name: "Sleeve" },
+    );
+
+    expect(updatedSource.name).toBe("Sleeve");
+    expect(updatedMirror.name).toBe("Sleeve Mirrored");
+  });
+
+  it("normalizes mirror names when mirrored metadata changes", () => {
+    const { sourcePiece, mirroredPiece } = createSymmetricPiecePair(
+      makePiece({ name: "Front Panel" }),
+      "mirror",
+    );
+    const [updatedSource, updatedMirror] = updatePieceMetadataInPieces(
+      [sourcePiece, mirroredPiece],
+      mirroredPiece.id,
+      { name: "Back Panel Mirrored" },
+    );
+
+    expect(updatedSource.name).toBe("Back Panel");
+    expect(updatedMirror.name).toBe("Back Panel Mirrored");
   });
 
   it("duplicates pieces with new ids and without symmetry links", () => {

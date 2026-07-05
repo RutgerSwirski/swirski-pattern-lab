@@ -119,7 +119,7 @@ export function createSymmetricPiecePair(
   const mirroredBasePiece: PatternPiece = {
     ...selectedPiece,
     id: mirroredPieceId,
-    name: `${selectedPiece.name} Mirror`,
+    name: `${selectedPiece.name} Mirrored`,
     x: mirroredPieceX,
     symmetry: {
       pairId: selectedPiece.id,
