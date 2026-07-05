@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Circle, Group, Line } from "react-konva";
 
 import type {
@@ -33,6 +34,7 @@ export function PatternCurveHandles({
   onCommitHistoryTransaction,
   onUpdateCurveHandle,
 }: PatternCurveHandlesProps) {
+  const [hoveredHandleKey, setHoveredHandleKey] = useState<string | null>(null);
   const focusedHandleKeys = new Set(
     focusedCurveHandles.map(
       (focusedHandle) =>
@@ -62,16 +64,30 @@ export function PatternCurveHandles({
     handle: CurveHandle,
     position: PointPosition,
   ) {
+    const handleKey = `${point.id}-${handle}`;
+    const isHovered = hoveredHandleKey === handleKey;
+
     return (
       <Circle
-        key={`${point.id}-${handle}`}
+        key={handleKey}
         x={position.x}
         y={position.y}
-        radius={4 / camera.scale}
-        fill="#ffffff"
-        stroke="#059669"
-        strokeWidth={1.25 / camera.scale}
+        radius={(isHovered ? 6 : 4) / camera.scale}
+        fill={isHovered ? "#d1fae5" : "#ffffff"}
+        stroke={isHovered ? "#047857" : "#059669"}
+        strokeWidth={(isHovered ? 1.8 : 1.25) / camera.scale}
+        shadowColor={isHovered ? "#059669" : undefined}
+        shadowBlur={isHovered ? 9 / camera.scale : 0}
+        shadowOpacity={isHovered ? 0.28 : 0}
         draggable={canEditCurves}
+        onMouseEnter={() => {
+          setHoveredHandleKey(handleKey);
+        }}
+        onMouseLeave={() => {
+          setHoveredHandleKey((currentHandleKey) =>
+            currentHandleKey === handleKey ? null : currentHandleKey,
+          );
+        }}
         onMouseDown={(event) => {
           event.cancelBubble = true;
 
@@ -82,6 +98,7 @@ export function PatternCurveHandles({
         }}
         onTouchStart={(event) => {
           event.cancelBubble = true;
+          setHoveredHandleKey(handleKey);
 
           if (canEditCurves) {
             onBeginHistoryTransaction();
@@ -97,6 +114,7 @@ export function PatternCurveHandles({
         }}
         onTouchEnd={(event) => {
           event.cancelBubble = true;
+          setHoveredHandleKey(null);
 
           if (canEditCurves) {
             commitHistoryTransactionAfterDragEnd();
@@ -117,6 +135,7 @@ export function PatternCurveHandles({
         }}
         onDragEnd={(event) => {
           event.cancelBubble = true;
+          setHoveredHandleKey(null);
           onCommitHistoryTransaction();
         }}
       />
