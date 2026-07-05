@@ -42,16 +42,58 @@ export function getSymmetricPatternPoint(
   point: PatternPoint,
   editedPiece: PatternPiece,
   linkedPiece: PatternPiece,
+  localOffset: PointPosition = { x: 0, y: 0 },
 ) {
+  const position = getSymmetricLocalPosition(point, editedPiece, linkedPiece);
+
   return {
     ...point,
-    ...getSymmetricLocalPosition(point, editedPiece, linkedPiece),
+    x: position.x + localOffset.x,
+    y: position.y + localOffset.y,
     curveIn: point.curveIn
-      ? getSymmetricLocalPosition(point.curveIn, editedPiece, linkedPiece)
+      ? offsetPointPosition(
+          getSymmetricLocalPosition(point.curveIn, editedPiece, linkedPiece),
+          localOffset,
+        )
       : undefined,
     curveOut: point.curveOut
-      ? getSymmetricLocalPosition(point.curveOut, editedPiece, linkedPiece)
+      ? offsetPointPosition(
+          getSymmetricLocalPosition(point.curveOut, editedPiece, linkedPiece),
+          localOffset,
+        )
       : undefined,
+  };
+}
+
+export function getSymmetricLocalOffset(
+  editedPiece: PatternPiece,
+  linkedPiece: PatternPiece,
+): PointPosition {
+  const linkedPoint = linkedPiece.points.find((point) =>
+    editedPiece.points.some((editedPoint) => editedPoint.id === point.id),
+  );
+
+  if (!linkedPoint) {
+    return { x: 0, y: 0 };
+  }
+
+  const editedPoint = editedPiece.points.find(
+    (point) => point.id === linkedPoint.id,
+  );
+
+  if (!editedPoint) {
+    return { x: 0, y: 0 };
+  }
+
+  const strictLocalPosition = getSymmetricLocalPosition(
+    editedPoint,
+    editedPiece,
+    linkedPiece,
+  );
+
+  return {
+    x: linkedPoint.x - strictLocalPosition.x,
+    y: linkedPoint.y - strictLocalPosition.y,
   };
 }
 
@@ -94,5 +136,15 @@ export function createSymmetricPiecePair(
         getSymmetricPatternPoint(point, sourcePiece, mirroredBasePiece),
       ),
     },
+  };
+}
+
+function offsetPointPosition(
+  point: PointPosition,
+  offset: PointPosition,
+): PointPosition {
+  return {
+    x: point.x + offset.x,
+    y: point.y + offset.y,
   };
 }

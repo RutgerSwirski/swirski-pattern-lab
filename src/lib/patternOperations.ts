@@ -6,7 +6,7 @@ import type {
 } from "../types";
 import { getSplitCubicBezier } from "./geometry";
 import { clearBezierSegmentHandles } from "./patternEditing";
-import { getSymmetricPatternPoint } from "./symmetry";
+import { getSymmetricLocalOffset, getSymmetricPatternPoint } from "./symmetry";
 
 type PiecePair = {
   editedPiece: PatternPiece;
@@ -364,6 +364,9 @@ function updatePairedPoints(
     points: updatePoints(pair.editedPiece),
   };
   const linkedPiece = pair.linkedPiece;
+  const linkedLocalOffset = linkedPiece
+    ? getSymmetricLocalOffset(pair.editedPiece, linkedPiece)
+    : { x: 0, y: 0 };
 
   return pieces.map((piece) => {
     if (piece.id === updatedEditedPiece.id) {
@@ -377,7 +380,12 @@ function updatePairedPoints(
     return {
       ...piece,
       points: updatedEditedPiece.points.map((point) =>
-        getSymmetricPatternPoint(point, updatedEditedPiece, linkedPiece),
+        getSymmetricPatternPoint(
+          point,
+          updatedEditedPiece,
+          linkedPiece,
+          linkedLocalOffset,
+        ),
       ),
     };
   });

@@ -283,6 +283,43 @@ describe("pattern operations", () => {
     });
   });
 
+  it("keeps a moved mirror piece in place when a source point changes", () => {
+    const { sourcePiece, mirroredPiece } = createSymmetricPiecePair(
+      makePiece({
+        points: [
+          { id: "a", x: 0, y: 0 },
+          { id: "b", x: 100, y: 0 },
+          { id: "c", x: 0, y: 100 },
+        ],
+      }),
+      "mirror",
+    );
+    const [sourceAfterMove, mirrorAfterMove] = updatePiecePositionInPieces(
+      [sourcePiece, mirroredPiece],
+      mirroredPiece.id,
+      mirroredPiece.x + 60,
+      mirroredPiece.y + 30,
+    );
+
+    const [updatedSource, updatedMirror] = updatePatternPointInPieces(
+      [sourceAfterMove, mirrorAfterMove],
+      sourcePiece.id,
+      "a",
+      10,
+      20,
+    );
+
+    expect(updatedMirror).toMatchObject({
+      x: mirrorAfterMove.x,
+      y: mirrorAfterMove.y,
+    });
+    expect(getPoint(updatedSource, "a")).toMatchObject({ x: 10, y: 20 });
+    expect(getPoint(updatedMirror, "a")).toMatchObject({
+      x: getPoint(mirrorAfterMove, "a").x - 10,
+      y: getPoint(mirrorAfterMove, "a").y + 20,
+    });
+  });
+
   it("duplicates pieces with new ids and without symmetry links", () => {
     const piece = makePiece({
       symmetry: {
