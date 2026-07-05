@@ -19,12 +19,37 @@ body,
   overflow: hidden;
 }
 
+.app-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 1fr);
+  width: 100vw;
+  height: 100dvh;
+  /* background: #111; */
+}
+
+.pattern-panel,
+.preview-panel {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.pattern-panel {
+  position: relative;
+  border-right: 1px solid #333;
+}
+
+.preview-panel {
+  /* backgroeund: #181818; */
+}
+
 canvas {
   display: block;
 }
 
 .toolbar {
-  position: fixed;
+  position: absolute;
   z-index: 10;
   top: 16px;
   right: 16px;
