@@ -4,7 +4,7 @@ import type {
   PieceMetadata,
   PointPosition,
 } from "../types";
-import { mirrorPointPosition, getSplitCubicBezier } from "./geometry";
+import { getSplitCubicBezier } from "./geometry";
 import { clearBezierSegmentHandles } from "./patternEditing";
 import { getSymmetricPatternPoint } from "./symmetry";
 
@@ -186,36 +186,15 @@ export function updatePiecePositionInPieces(
   x: number,
   y: number,
 ) {
-  const pair = getPiecePair(pieces, pieceId);
-
-  if (!pair) {
-    return pieces;
-  }
-
-  return pieces.map((piece) => {
-    if (piece.id === pieceId) {
-      return {
-        ...piece,
-        x,
-        y,
-      };
-    }
-
-    if (piece.id !== pair.linkedPiece?.id || !pair.editedPiece.symmetry) {
-      return piece;
-    }
-
-    const mirroredWorldPosition = mirrorPointPosition(
-      { x, y },
-      pair.editedPiece.symmetry.axisX,
-    );
-
-    return {
-      ...piece,
-      x: mirroredWorldPosition.x,
-      y: mirroredWorldPosition.y,
-    };
-  });
+  return pieces.map((piece) =>
+    piece.id === pieceId
+      ? {
+          ...piece,
+          x,
+          y,
+        }
+      : piece,
+  );
 }
 
 export function updatePieceMetadataInPieces(

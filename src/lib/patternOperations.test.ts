@@ -6,6 +6,7 @@ import {
   insertPatternPointInPieces,
   translatePatternSegmentInPieces,
   updatePatternPointInPieces,
+  updatePiecePositionInPieces,
 } from "./patternOperations";
 import { createSymmetricPiecePair } from "./symmetry";
 
@@ -193,5 +194,24 @@ describe("pattern operations", () => {
 
     expect(getPoint(updatedSource, "inserted")).toMatchObject({ x: 40, y: 0 });
     expect(getPoint(updatedMirror, "inserted")).toMatchObject({ x: 60, y: 0 });
+  });
+
+  it("moves only the dragged piece position for symmetric pairs", () => {
+    const { sourcePiece, mirroredPiece } = createSymmetricPiecePair(
+      makePiece({ x: 25, y: 10 }),
+      "mirror",
+    );
+    const [updatedSource, updatedMirror] = updatePiecePositionInPieces(
+      [sourcePiece, mirroredPiece],
+      sourcePiece.id,
+      80,
+      40,
+    );
+
+    expect(updatedSource).toMatchObject({ x: 80, y: 40 });
+    expect(updatedMirror).toMatchObject({
+      x: mirroredPiece.x,
+      y: mirroredPiece.y,
+    });
   });
 });
