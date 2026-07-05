@@ -8,7 +8,13 @@ import {
   snapToGrid,
 } from "../lib/geometry";
 import { MM_TO_PX } from "../lib/patternConfig";
-import type { Camera, PatternPiece, PointPosition, Tool } from "../types";
+import type {
+  Camera,
+  PatternPiece,
+  PieceTool,
+  PointPosition,
+  Tool,
+} from "../types";
 import { PatternPieceEdges } from "./PatternPieceEdges";
 
 type PatternPieceNodeProps = {
@@ -16,6 +22,7 @@ type PatternPieceNodeProps = {
   camera: Camera;
   focusedPointIds: string[];
   isSelected: boolean;
+  pieceTool: PieceTool;
   piece: PatternPiece;
   screenToPiecePoint: (
     piece: PatternPiece,
@@ -36,6 +43,7 @@ type PatternPieceNodeProps = {
     progress?: number,
   ) => void;
   onSelectPiece: (pieceId: string) => void;
+  onSelectPieceTool: (tool: PieceTool) => void;
   onTranslatePatternSegment: (
     pieceId: string,
     startPointId: string,
@@ -63,6 +71,7 @@ export function PatternPieceNode({
   camera,
   focusedPointIds,
   isSelected,
+  pieceTool,
   piece,
   screenToPiecePoint,
   onOpenBezierContextMenu,
@@ -72,6 +81,7 @@ export function PatternPieceNode({
   onFocusPatternPoints,
   onInsertPatternPoint,
   onSelectPiece,
+  onSelectPieceTool,
   onTranslatePatternSegment,
   onUpdatePatternPoint,
   onUpdateCurveHandle,
@@ -132,12 +142,17 @@ export function PatternPieceNode({
     window.addEventListener("touchend", commit, { once: true });
   }
 
+  const canMoveGeometry =
+    activeTool === "select" && isSelected && pieceTool === "move";
+  const canEditCurves =
+    activeTool === "select" && isSelected && pieceTool === "curve";
+
   return (
     <Group
       key={piece.id}
       x={piece.x}
       y={piece.y}
-      draggable={activeTool === "select" && isSelected}
+      draggable={canMoveGeometry}
       onClick={() => {
         if (activeTool === "select") {
           onSelectPiece(piece.id);
@@ -192,6 +207,7 @@ export function PatternPieceNode({
         <PatternPieceEdges
           activeTool={activeTool}
           camera={camera}
+          pieceTool={pieceTool}
           piece={piece}
           screenToPiecePoint={screenToPiecePoint}
           onBeginHistoryTransaction={onBeginHistoryTransaction}
@@ -199,6 +215,7 @@ export function PatternPieceNode({
           onFocusPatternPoints={onFocusPatternPoints}
           onInsertPatternPoint={onInsertPatternPoint}
           onOpenBezierContextMenu={onOpenBezierContextMenu}
+          onSelectPieceTool={onSelectPieceTool}
           onTranslatePatternSegment={onTranslatePatternSegment}
         />
       )}
@@ -251,31 +268,45 @@ export function PatternPieceNode({
             fill="#ffffff"
             stroke="#2563eb"
             strokeWidth={1 / camera.scale}
-            draggable={activeTool === "select"}
+            draggable={canMoveGeometry}
             onMouseDown={(event) => {
               event.cancelBubble = true;
-              onBeginHistoryTransaction();
-              commitHistoryTransactionOnPointerRelease();
+
+              if (canMoveGeometry) {
+                onBeginHistoryTransaction();
+                commitHistoryTransactionOnPointerRelease();
+              }
             }}
             onTouchStart={(event) => {
               event.cancelBubble = true;
-              onBeginHistoryTransaction();
-              commitHistoryTransactionOnPointerRelease();
+
+              if (canMoveGeometry) {
+                onBeginHistoryTransaction();
+                commitHistoryTransactionOnPointerRelease();
+              }
             }}
             onMouseUp={(event) => {
               event.cancelBubble = true;
-              commitHistoryTransactionAfterDragEnd();
+
+              if (canMoveGeometry) {
+                commitHistoryTransactionAfterDragEnd();
+              }
             }}
             onTouchEnd={(event) => {
               event.cancelBubble = true;
-              commitHistoryTransactionAfterDragEnd();
+
+              if (canMoveGeometry) {
+                commitHistoryTransactionAfterDragEnd();
+              }
             }}
             onDblClick={(event) => {
               event.cancelBubble = true;
+              onSelectPieceTool("curve");
               onFocusPatternPoint(piece.id, point.id);
             }}
             onDblTap={(event) => {
               event.cancelBubble = true;
+              onSelectPieceTool("curve");
               onFocusPatternPoint(piece.id, point.id);
             }}
             onDragStart={(event) => {
@@ -306,6 +337,7 @@ export function PatternPieceNode({
         ))}
 
       {isSelected &&
+        pieceTool === "curve" &&
         piece.points.map((point) => {
           if (
             !focusedPointIds.includes(point.id) ||
@@ -339,24 +371,36 @@ export function PatternPieceNode({
                 fill="#ffffff"
                 stroke="#059669"
                 strokeWidth={1.25 / camera.scale}
-                draggable
+                draggable={canEditCurves}
                 onMouseDown={(event) => {
                   event.cancelBubble = true;
-                  onBeginHistoryTransaction();
-                  commitHistoryTransactionOnPointerRelease();
+
+                  if (canEditCurves) {
+                    onBeginHistoryTransaction();
+                    commitHistoryTransactionOnPointerRelease();
+                  }
                 }}
                 onTouchStart={(event) => {
                   event.cancelBubble = true;
-                  onBeginHistoryTransaction();
-                  commitHistoryTransactionOnPointerRelease();
+
+                  if (canEditCurves) {
+                    onBeginHistoryTransaction();
+                    commitHistoryTransactionOnPointerRelease();
+                  }
                 }}
                 onMouseUp={(event) => {
                   event.cancelBubble = true;
-                  commitHistoryTransactionAfterDragEnd();
+
+                  if (canEditCurves) {
+                    commitHistoryTransactionAfterDragEnd();
+                  }
                 }}
                 onTouchEnd={(event) => {
                   event.cancelBubble = true;
-                  commitHistoryTransactionAfterDragEnd();
+
+                  if (canEditCurves) {
+                    commitHistoryTransactionAfterDragEnd();
+                  }
                 }}
                 onDragStart={(event) => {
                   event.cancelBubble = true;
@@ -384,24 +428,36 @@ export function PatternPieceNode({
                 fill="#ffffff"
                 stroke="#059669"
                 strokeWidth={1.25 / camera.scale}
-                draggable
+                draggable={canEditCurves}
                 onMouseDown={(event) => {
                   event.cancelBubble = true;
-                  onBeginHistoryTransaction();
-                  commitHistoryTransactionOnPointerRelease();
+
+                  if (canEditCurves) {
+                    onBeginHistoryTransaction();
+                    commitHistoryTransactionOnPointerRelease();
+                  }
                 }}
                 onTouchStart={(event) => {
                   event.cancelBubble = true;
-                  onBeginHistoryTransaction();
-                  commitHistoryTransactionOnPointerRelease();
+
+                  if (canEditCurves) {
+                    onBeginHistoryTransaction();
+                    commitHistoryTransactionOnPointerRelease();
+                  }
                 }}
                 onMouseUp={(event) => {
                   event.cancelBubble = true;
-                  commitHistoryTransactionAfterDragEnd();
+
+                  if (canEditCurves) {
+                    commitHistoryTransactionAfterDragEnd();
+                  }
                 }}
                 onTouchEnd={(event) => {
                   event.cancelBubble = true;
-                  commitHistoryTransactionAfterDragEnd();
+
+                  if (canEditCurves) {
+                    commitHistoryTransactionAfterDragEnd();
+                  }
                 }}
                 onDragStart={(event) => {
                   event.cancelBubble = true;

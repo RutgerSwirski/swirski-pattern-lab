@@ -9,7 +9,14 @@ import {
   getSegmentLength,
 } from "../lib/geometry";
 import { MM_TO_PX } from "../lib/patternConfig";
-import type { Camera, PatternPiece, PatternPoint, PointPosition, Tool } from "../types";
+import type {
+  Camera,
+  PatternPiece,
+  PatternPoint,
+  PieceTool,
+  PointPosition,
+  Tool,
+} from "../types";
 
 type PatternEdge = {
   id: string;
@@ -25,6 +32,7 @@ type PatternEdge = {
 type PatternPieceEdgesProps = {
   activeTool: Tool;
   camera: Camera;
+  pieceTool: PieceTool;
   piece: PatternPiece;
   screenToPiecePoint: (
     piece: PatternPiece,
@@ -43,6 +51,7 @@ type PatternPieceEdgesProps = {
     event: Konva.KonvaEventObject<PointerEvent>,
     startPointId: string,
   ) => void;
+  onSelectPieceTool: (tool: PieceTool) => void;
   onTranslatePatternSegment: (
     pieceId: string,
     startPointId: string,
@@ -55,6 +64,7 @@ type PatternPieceEdgesProps = {
 export function PatternPieceEdges({
   activeTool,
   camera,
+  pieceTool,
   piece,
   screenToPiecePoint,
   onBeginHistoryTransaction,
@@ -62,6 +72,7 @@ export function PatternPieceEdges({
   onFocusPatternPoints,
   onInsertPatternPoint,
   onOpenBezierContextMenu,
+  onSelectPieceTool,
   onTranslatePatternSegment,
 }: PatternPieceEdgesProps) {
   const [hoverPoint, setHoverPoint] = useState<{
@@ -75,6 +86,9 @@ export function PatternPieceEdges({
   const edgePointerButton = useRef<number | null>(null);
   const suppressEdgeClickUntil = useRef(0);
   const edges = getPatternEdges(piece);
+  const canAddPoint = activeTool === "select" && pieceTool === "add-point";
+  const canCurveSegment = activeTool === "select" && pieceTool === "curve";
+  const canMoveSegment = activeTool === "select" && pieceTool === "move";
 
   return (
     <>
@@ -125,6 +139,20 @@ export function PatternPieceEdges({
             return;
           }
 
+          if (canCurveSegment) {
+            if (clickTimer.current) {
+              clearTimeout(clickTimer.current);
+              clickTimer.current = null;
+            }
+
+            onFocusPatternPoints(piece.id, [edge.start.id, edge.end.id]);
+            return;
+          }
+
+          if (!canAddPoint) {
+            return;
+          }
+
           const newPoint =
             hoverPoint?.edgeId === edge.id ? hoverPoint : getPointOnEdge(event);
 
@@ -161,7 +189,7 @@ export function PatternPieceEdges({
             clickTimer.current = null;
           }
 
-          if ("altKey" in event.evt && event.evt.altKey) {
+          if ("altKey" in event.evt && event.evt.altKey && canAddPoint) {
             const newPoint = getPointOnEdge(event);
 
             if (!newPoint || isNearEdgeEndpoint(newPoint.point)) {
@@ -177,13 +205,21 @@ export function PatternPieceEdges({
             return;
           }
 
+          if (!canCurveSegment && pieceTool !== "move") {
+            return;
+          }
+
+          onSelectPieceTool("curve");
           onFocusPatternPoints(piece.id, [edge.start.id, edge.end.id]);
         }
 
         function handleEdgeHover(
           event: Konva.KonvaEventObject<MouseEvent | TouchEvent>,
         ) {
-          if (edgeDragPointer.current) {
+          if (!canAddPoint || edgeDragPointer.current) {
+            setHoverPoint((currentPoint) =>
+              currentPoint?.edgeId === edge.id ? null : currentPoint,
+            );
             return;
           }
 
@@ -256,7 +292,7 @@ export function PatternPieceEdges({
             stroke="rgba(37, 99, 235, 0.01)"
             strokeWidth={10 / camera.scale}
             hitStrokeWidth={14 / camera.scale}
-            draggable={activeTool === "select"}
+            draggable={canMoveSegment}
             onMouseDown={(event) => {
               edgePointerButton.current = event.evt.button;
 
@@ -308,7 +344,7 @@ export function PatternPieceEdges({
         );
       })}
 
-      {hoverPoint && (
+      {canAddPoint && hoverPoint && (
         <Circle
           x={hoverPoint.point.x}
           y={hoverPoint.point.y}

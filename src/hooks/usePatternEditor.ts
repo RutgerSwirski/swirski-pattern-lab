@@ -22,6 +22,7 @@ import { createSymmetricPiecePair } from "../lib/symmetry";
 import type {
   PatternPiece,
   PatternPoint,
+  PieceTool,
   PieceMetadata,
   PointPosition,
   Tool,
@@ -57,6 +58,7 @@ function createInitialPiece(): PatternPiece {
 
 export function usePatternEditor() {
   const [activeTool, setActiveTool] = useState<Tool>("select");
+  const [pieceTool, setPieceTool] = useState<PieceTool>("move");
   const [pieceHistory, setPieceHistory] = useState<PieceHistory>({
     past: [],
     present: [createInitialPiece()],
@@ -284,6 +286,7 @@ export function usePatternEditor() {
     setDraftCursor(null);
     setFocusedPoint(null);
     setActiveTool("select");
+    setPieceTool("move");
   }
 
   function selectPiece(pieceId: string) {
@@ -322,6 +325,7 @@ export function usePatternEditor() {
     setDraftCursor(null);
     setFocusedPoint(null);
     setActiveTool("select");
+    setPieceTool("move");
   }, [draftPoints, makeId, updatePieces]);
 
   useEffect(() => {
@@ -422,6 +426,7 @@ export function usePatternEditor() {
     draftCursor,
     draftPoints,
     focusedPoint,
+    pieceTool,
     pieces,
     selectedPiece,
     selectedPieceId,
@@ -439,6 +444,7 @@ export function usePatternEditor() {
     setActiveTool,
     setDraftCursor,
     setDraftPoints,
+    setPieceTool,
     undo,
     translatePatternSegment,
     updateCurveHandle,

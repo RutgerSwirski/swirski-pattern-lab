@@ -28,6 +28,8 @@ export type PatternPiece = {
 
 export type Tool = "select" | "draw";
 
+export type PieceTool = "move" | "add-point" | "curve";
+
 export type Camera = PointPosition & {
   scale: number;
 };

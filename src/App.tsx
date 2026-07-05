@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { PatternCanvas } from "./components/PatternCanvas";
 import { PieceInspector } from "./components/PieceInspector";
+import { PieceToolBar } from "./components/PieceToolBar";
 import { Toolbar } from "./components/Toolbar";
 import { usePatternEditor } from "./hooks/usePatternEditor";
 import type { Camera, PointPosition, Viewport } from "./types";
@@ -48,6 +49,8 @@ function App() {
           ? "grabbing"
           : editor.activeTool === "draw"
             ? "crosshair"
+            : editor.selectedPiece && editor.pieceTool === "add-point"
+              ? "crosshair"
             : "grab",
       }}
     >
@@ -75,6 +78,13 @@ function App() {
         />
       )}
 
+      {editor.activeTool === "select" && editor.selectedPiece && (
+        <PieceToolBar
+          activeTool={editor.pieceTool}
+          onSelectTool={editor.setPieceTool}
+        />
+      )}
+
       <PatternCanvas
         activeTool={editor.activeTool}
         camera={camera}
@@ -83,6 +93,7 @@ function App() {
         isPanning={isPanning}
         lastPointerPosition={lastPointerPosition}
         makeId={editor.makeId}
+        pieceTool={editor.pieceTool}
         pieces={editor.pieces}
         focusedPointIds={
           editor.focusedPoint?.pieceId === editor.selectedPieceId
@@ -102,6 +113,7 @@ function App() {
         onFocusPatternPoints={editor.focusPatternPoints}
         onInsertPatternPoint={editor.insertPatternPoint}
         onSelectPiece={editor.selectPiece}
+        onSelectPieceTool={editor.setPieceTool}
         onSetCamera={setCamera}
         onSetDraftCursor={editor.setDraftCursor}
         onSetIsPanning={setIsPanning}

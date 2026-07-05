@@ -13,6 +13,7 @@ import type {
   Camera,
   PatternPiece,
   PatternPoint,
+  PieceTool,
   PointPosition,
   Tool,
   Viewport,
@@ -29,6 +30,7 @@ type PatternCanvasProps = {
   draftPoints: PatternPoint[];
   isPanning: boolean;
   lastPointerPosition: PointPosition | null;
+  pieceTool: PieceTool;
   pieces: PatternPiece[];
   focusedPointIds: string[];
   selectedPieceId: string | null;
@@ -48,6 +50,7 @@ type PatternCanvasProps = {
     progress?: number,
   ) => void;
   onSelectPiece: (pieceId: string) => void;
+  onSelectPieceTool: (tool: PieceTool) => void;
   onSetCamera: Dispatch<SetStateAction<Camera>>;
   onSetDraftCursor: (point: PointPosition | null) => void;
   onSetIsPanning: (isPanning: boolean) => void;
@@ -81,6 +84,7 @@ export function PatternCanvas({
   draftPoints,
   isPanning,
   lastPointerPosition,
+  pieceTool,
   pieces,
   focusedPointIds,
   selectedPieceId,
@@ -95,6 +99,7 @@ export function PatternCanvas({
   onFocusPatternPoints,
   onInsertPatternPoint,
   onSelectPiece,
+  onSelectPieceTool,
   onSetCamera,
   onSetDraftCursor,
   onSetIsPanning,
@@ -261,6 +266,7 @@ export function PatternCanvas({
               camera={camera}
               focusedPointIds={focusedPointIds}
               isSelected={piece.id === selectedPieceId}
+              pieceTool={pieceTool}
               piece={piece}
               screenToPiecePoint={screenToPiecePoint}
               onBeginHistoryTransaction={onBeginHistoryTransaction}
@@ -281,6 +287,7 @@ export function PatternCanvas({
               onFocusPatternPoints={onFocusPatternPoints}
               onInsertPatternPoint={onInsertPatternPoint}
               onSelectPiece={onSelectPiece}
+              onSelectPieceTool={onSelectPieceTool}
               onTranslatePatternSegment={onTranslatePatternSegment}
               onUpdatePatternPoint={onUpdatePatternPoint}
               onUpdateCurveHandle={onUpdateCurveHandle}

@@ -55,6 +55,41 @@ canvas {
   cursor: not-allowed;
 }
 
+.piece-toolbar {
+  position: fixed;
+  z-index: 11;
+  top: 16px;
+  left: 50%;
+  display: flex;
+  max-width: calc(100vw - 32px);
+  gap: 6px;
+  padding: 6px;
+  overflow-x: auto;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid #d0d0d0;
+  border-radius: 8px;
+  box-shadow: 0 14px 34px rgba(20, 20, 20, 0.12);
+  transform: translateX(-50%);
+}
+
+.piece-toolbar button {
+  flex: 0 0 auto;
+  padding: 8px 11px;
+  border: 1px solid #cfcfcf;
+  border-radius: 5px;
+  background: white;
+  color: #222;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+}
+
+.piece-toolbar button.active {
+  background: #2563eb;
+  color: white;
+  border-color: #2563eb;
+}
+
 .piece-inspector {
   position: fixed;
   z-index: 10;
@@ -187,4 +222,18 @@ canvas {
 .context-menu button:focus {
   background: #f1f5f9;
   outline: none;
+}
+
+@media (max-width: 760px) {
+  .piece-toolbar {
+    top: 68px;
+    left: 16px;
+    right: 16px;
+    justify-content: center;
+    transform: none;
+  }
+
+  .piece-inspector {
+    top: 124px;
+  }
 }

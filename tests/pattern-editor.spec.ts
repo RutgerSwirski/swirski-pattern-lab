@@ -172,6 +172,7 @@ test("dragging an edge does not consume the next add-point click", async ({
 
   await storeCanvasSnapshot(page, "after-edge-drag");
 
+  await page.getByRole("button", { name: "Add point" }).click();
   await page.mouse.click(topEdge.x, topEdge.y + 40);
   await page.waitForTimeout(300);
 
@@ -184,6 +185,7 @@ test("double-clicking an edge shows bezier handles", async ({ page }) => {
   const topEdge = patternPointToScreen({ x: 0, y: -160 });
   const beforeHandles = await countGreenPixels(page);
 
+  await page.getByRole("button", { name: "Curve" }).click();
   await page.mouse.dblclick(topEdge.x, topEdge.y);
   await page.waitForTimeout(200);
 
