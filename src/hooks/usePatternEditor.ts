@@ -10,6 +10,7 @@ import {
 import {
   clearBezierSegmentInPieces,
   deletePatternPointsInPieces,
+  duplicatePatternPiece,
   focusPatternPointsInPieces,
   insertPatternPointInPieces,
   translatePatternSegmentInPieces,
@@ -39,6 +40,7 @@ type FocusedPoint = {
 type PieceHistory = HistoryState<PatternPiece[]>;
 
 const MAX_HISTORY_STEPS = 100;
+const PASTE_OFFSET_MM = 20;
 
 function createInitialPiece(): PatternPiece {
   return {
@@ -73,6 +75,8 @@ export function usePatternEditor() {
   const [focusedPoint, setFocusedPoint] = useState<FocusedPoint | null>(null);
   const idSeed = useRef(crypto.randomUUID());
   const nextId = useRef(1);
+  const copiedPiece = useRef<PatternPiece | null>(null);
+  const pasteCount = useRef(0);
   const historyTransactionStart = useRef<PatternPiece[] | null>(null);
   const historyTransactionChanged = useRef(false);
   const pieces = pieceHistory.present;
@@ -315,6 +319,39 @@ export function usePatternEditor() {
     ]);
   }
 
+  const copySelectedPiece = useCallback(() => {
+    if (!selectedPiece) {
+      return;
+    }
+
+    copiedPiece.current = selectedPiece;
+    pasteCount.current = 0;
+  }, [selectedPiece]);
+
+  const pasteCopiedPiece = useCallback(() => {
+    if (!copiedPiece.current) {
+      return;
+    }
+
+    pasteCount.current += 1;
+
+    const pastedPiece = duplicatePatternPiece(
+      copiedPiece.current,
+      makeId("piece"),
+      () => makeId("point"),
+      {
+        x: PASTE_OFFSET_MM * pasteCount.current,
+        y: PASTE_OFFSET_MM * pasteCount.current,
+      },
+    );
+
+    updatePieces((currentPieces) => [...currentPieces, pastedPiece]);
+    setSelectedPieceId(pastedPiece.id);
+    setFocusedPoint(null);
+    setActiveTool("select");
+    setPieceTool("move");
+  }, [makeId, updatePieces]);
+
   function cancelDraftPiece() {
     setDraftPoints([]);
     setDraftCursor(null);
@@ -452,6 +489,38 @@ export function usePatternEditor() {
     };
   }, [redo, undo]);
 
+  useEffect(() => {
+    function handleClipboardKeyboardShortcuts(event: KeyboardEvent) {
+      const target = event.target;
+      const isTyping =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement;
+
+      if (isTyping || !(event.metaKey || event.ctrlKey)) {
+        return;
+      }
+
+      const key = event.key.toLowerCase();
+
+      if (key === "c" && selectedPiece) {
+        event.preventDefault();
+        copySelectedPiece();
+        return;
+      }
+
+      if (key === "v" && copiedPiece.current) {
+        event.preventDefault();
+        pasteCopiedPiece();
+      }
+    }
+
+    window.addEventListener("keydown", handleClipboardKeyboardShortcuts);
+
+    return () => {
+      window.removeEventListener("keydown", handleClipboardKeyboardShortcuts);
+    };
+  }, [copySelectedPiece, pasteCopiedPiece, selectedPiece]);
+
   return {
     activeTool,
     beginHistoryTransaction,
@@ -469,12 +538,14 @@ export function usePatternEditor() {
     clearBezierSegment,
     clearSelection,
     createSymmetricPiece,
+    copySelectedPiece,
     finishDraftPiece,
     focusPatternPoint,
     focusPatternPoints,
     focusPatternSegment,
     insertPatternPoint,
     makeId,
+    pasteCopiedPiece,
     redo,
     selectPiece,
     setActiveTool,

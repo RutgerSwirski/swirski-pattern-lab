@@ -214,6 +214,28 @@ export function updatePieceMetadataInPieces(
   );
 }
 
+export function duplicatePatternPiece(
+  piece: PatternPiece,
+  pieceId: string,
+  makePointId: () => string,
+  offset: PointPosition,
+): PatternPiece {
+  return {
+    ...piece,
+    id: pieceId,
+    name: `${piece.name} Copy`,
+    x: piece.x + offset.x,
+    y: piece.y + offset.y,
+    symmetry: undefined,
+    points: piece.points.map((point) => ({
+      ...point,
+      id: makePointId(),
+      curveIn: point.curveIn ? { ...point.curveIn } : undefined,
+      curveOut: point.curveOut ? { ...point.curveOut } : undefined,
+    })),
+  };
+}
+
 function updatePairedPoints(
   pieces: PatternPiece[],
   pieceId: string,

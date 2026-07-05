@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { PatternPiece, PointPosition } from "../types";
 import { getCubicPoint } from "./geometry";
 import {
+  duplicatePatternPiece,
   insertPatternPointInPieces,
   translatePatternSegmentInPieces,
   updatePatternPointInPieces,
@@ -213,5 +214,40 @@ describe("pattern operations", () => {
       x: mirroredPiece.x,
       y: mirroredPiece.y,
     });
+  });
+
+  it("duplicates pieces with new ids and without symmetry links", () => {
+    const piece = makePiece({
+      symmetry: {
+        pairId: "mirror",
+        role: "source",
+        axisX: 100,
+      },
+      x: 10,
+      y: 20,
+    });
+    const pointIds = ["copy-a", "copy-b", "copy-c"];
+    const duplicatedPiece = duplicatePatternPiece(
+      piece,
+      "piece-copy",
+      () => pointIds.shift() ?? "copy-extra",
+      { x: 20, y: 20 },
+    );
+
+    expect(duplicatedPiece).toMatchObject({
+      id: "piece-copy",
+      name: "Piece Copy",
+      x: 30,
+      y: 40,
+    });
+    expect(duplicatedPiece.symmetry).toBeUndefined();
+    expect(duplicatedPiece.points.map((point) => point.id)).toEqual([
+      "copy-a",
+      "copy-b",
+      "copy-c",
+    ]);
+    expect(getPoint(duplicatedPiece, "copy-a").curveOut).toEqual(
+      getPoint(piece, "a").curveOut,
+    );
   });
 });

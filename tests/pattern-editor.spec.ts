@@ -231,6 +231,18 @@ test("dragging an edge does not consume the next add-point click", async ({
   expect(await countCanvasDiff(page, "after-edge-drag")).toBeGreaterThan(100);
 });
 
+test("copying and pasting a selected piece duplicates it", async ({ page }) => {
+  await openEditor(page);
+
+  await storeCanvasSnapshot(page, "before-paste");
+  await page.keyboard.press("Control+C");
+  await page.keyboard.press("Control+V");
+  await page.waitForTimeout(200);
+
+  expect(await countCanvasDiff(page, "before-paste")).toBeGreaterThan(500);
+  await expect(page.getByRole("button", { name: "Undo" })).toBeEnabled();
+});
+
 test("double-clicking an edge shows bezier handles", async ({ page }) => {
   await openEditor(page);
 
