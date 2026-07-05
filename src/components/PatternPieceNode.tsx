@@ -126,7 +126,11 @@ export function PatternPieceNode({
           return;
         }
 
-        onUpdatePiecePosition(piece.id, event.target.x(), event.target.y());
+        const x = snapToGrid(event.target.x());
+        const y = snapToGrid(event.target.y());
+
+        onUpdatePiecePosition(piece.id, x, y);
+        event.target.position({ x, y });
       }}
       onDragEnd={(event) => {
         if (event.target !== event.currentTarget) {
