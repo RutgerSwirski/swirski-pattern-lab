@@ -9,6 +9,7 @@ import {
 } from "../lib/history";
 import {
   clearBezierSegmentInPieces,
+  deletePatternPieceInPieces,
   deletePatternPointsInPieces,
   duplicatePatternPiece,
   focusPatternPointsInPieces,
@@ -288,6 +289,19 @@ export function usePatternEditor() {
     setFocusedPoint(null);
   }, [updatePieces]);
 
+  const deleteSelectedPiece = useCallback(() => {
+    if (!selectedPieceId) {
+      return;
+    }
+
+    updatePieces((currentPieces) =>
+      deletePatternPieceInPieces(currentPieces, selectedPieceId),
+    );
+    setSelectedPieceId(null);
+    setFocusedPoint(null);
+    setPieceTool("move");
+  }, [selectedPieceId, updatePieces]);
+
   function updatePiecePosition(pieceId: string, x: number, y: number) {
     updatePieces((currentPieces) =>
       updatePiecePositionInPieces(currentPieces, pieceId, x, y),
@@ -430,14 +444,23 @@ export function usePatternEditor() {
         target instanceof HTMLInputElement ||
         target instanceof HTMLTextAreaElement;
 
-      if (isTyping || !focusedPoint?.canDeletePoints) {
+      if (isTyping) {
         return;
       }
 
       if (event.key === "Delete" || event.key === "Backspace") {
-        event.preventDefault();
+        if (focusedPoint?.canDeletePoints) {
+          event.preventDefault();
 
-        deletePatternPoints(focusedPoint.pieceId, focusedPoint.pointIds);
+          deletePatternPoints(focusedPoint.pieceId, focusedPoint.pointIds);
+          return;
+        }
+
+        if (!focusedPoint && selectedPieceId) {
+          event.preventDefault();
+
+          deleteSelectedPiece();
+        }
       }
     }
 
@@ -449,7 +472,7 @@ export function usePatternEditor() {
         handleSelectedPointKeyboardShortcuts,
       );
     };
-  }, [focusedPoint, deletePatternPoints]);
+  }, [focusedPoint, selectedPieceId, deletePatternPoints, deleteSelectedPiece]);
 
   useEffect(() => {
     function handleHistoryKeyboardShortcuts(event: KeyboardEvent) {
@@ -539,6 +562,7 @@ export function usePatternEditor() {
     clearSelection,
     createSymmetricPiece,
     copySelectedPiece,
+    deleteSelectedPiece,
     finishDraftPiece,
     focusPatternPoint,
     focusPatternPoints,

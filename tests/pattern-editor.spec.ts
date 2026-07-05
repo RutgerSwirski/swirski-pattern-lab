@@ -243,6 +243,20 @@ test("copying and pasting a selected piece duplicates it", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Undo" })).toBeEnabled();
 });
 
+test("deleting a selected piece removes it", async ({ page }) => {
+  await openEditor(page);
+
+  await storeCanvasSnapshot(page, "before-delete-piece");
+  await page.keyboard.press("Delete");
+  await page.waitForTimeout(200);
+
+  expect(await countCanvasDiff(page, "before-delete-piece")).toBeGreaterThan(
+    1000,
+  );
+  await expect(page.getByRole("button", { name: "Undo" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Move" })).toBeHidden();
+});
+
 test("double-clicking an edge shows bezier handles", async ({ page }) => {
   await openEditor(page);
 

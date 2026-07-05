@@ -180,6 +180,28 @@ export function deletePatternPointsInPieces(
   );
 }
 
+export function deletePatternPieceInPieces(
+  pieces: PatternPiece[],
+  pieceId: string,
+) {
+  const deletedPiece = pieces.find((piece) => piece.id === pieceId);
+
+  if (!deletedPiece) {
+    return pieces;
+  }
+
+  return pieces
+    .filter((piece) => piece.id !== pieceId)
+    .map((piece) =>
+      piece.id === deletedPiece.symmetry?.pairId
+        ? {
+            ...piece,
+            symmetry: undefined,
+          }
+        : piece,
+    );
+}
+
 export function updatePiecePositionInPieces(
   pieces: PatternPiece[],
   pieceId: string,

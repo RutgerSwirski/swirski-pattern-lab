@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { PatternPiece, PointPosition } from "../types";
 import { getCubicPoint } from "./geometry";
 import {
+  deletePatternPieceInPieces,
   duplicatePatternPiece,
   insertPatternPointInPieces,
   translatePatternSegmentInPieces,
@@ -249,5 +250,28 @@ describe("pattern operations", () => {
     expect(getPoint(duplicatedPiece, "copy-a").curveOut).toEqual(
       getPoint(piece, "a").curveOut,
     );
+  });
+
+  it("deletes a pattern piece", () => {
+    const updatedPieces = deletePatternPieceInPieces(
+      [makePiece(), makePiece({ id: "other" })],
+      "piece",
+    );
+
+    expect(updatedPieces.map((piece) => piece.id)).toEqual(["other"]);
+  });
+
+  it("clears the symmetry link when deleting one piece in a symmetric pair", () => {
+    const { sourcePiece, mirroredPiece } = createSymmetricPiecePair(
+      makePiece(),
+      "mirror",
+    );
+    const [remainingPiece] = deletePatternPieceInPieces(
+      [sourcePiece, mirroredPiece],
+      sourcePiece.id,
+    );
+
+    expect(remainingPiece.id).toBe(mirroredPiece.id);
+    expect(remainingPiece.symmetry).toBeUndefined();
   });
 });
