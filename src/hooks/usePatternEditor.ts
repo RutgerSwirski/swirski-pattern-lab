@@ -585,13 +585,19 @@ export function usePatternEditor() {
 
         const currentTransform = currentPiece.previewTransform;
 
+        const currentScale = currentTransform?.scale ?? [1, 1, 1];
+        const nextScale = previewTransform.scale ?? [1, 1, 1];
+
         const hasNotChanged =
           currentTransform?.position[0] === previewTransform.position[0] &&
           currentTransform?.position[1] === previewTransform.position[1] &&
           currentTransform?.position[2] === previewTransform.position[2] &&
           currentTransform?.rotation[0] === previewTransform.rotation[0] &&
           currentTransform?.rotation[1] === previewTransform.rotation[1] &&
-          currentTransform?.rotation[2] === previewTransform.rotation[2];
+          currentTransform?.rotation[2] === previewTransform.rotation[2] &&
+          currentScale[0] === nextScale[0] &&
+          currentScale[1] === nextScale[1] &&
+          currentScale[2] === nextScale[2];
 
         if (hasNotChanged) {
           return currentPieces;

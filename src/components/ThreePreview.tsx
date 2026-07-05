@@ -17,6 +17,8 @@ import * as THREE from "three";
 
 import type { PatternPiece, PointPosition, PreviewTransform } from "../types";
 
+type TransformMode = "translate" | "rotate";
+
 const METRES_PER_MILLIMETRE = 0.001;
 
 type ThreePreviewProps = {
@@ -26,7 +28,7 @@ type ThreePreviewProps = {
   patternUnitsPerMillimetre?: number;
 
   onSelectPiece?: (pieceId: string) => void;
-  onUpdatePiecePreviewTransform?: (
+  onUpdatePiecePreviewTransform: (
     pieceId: string,
     transform: PreviewTransform,
   ) => void;
@@ -277,6 +279,7 @@ function PatternPiecePanel({
       ref={panelRef}
       position={transform.position}
       rotation={transform.rotation}
+      scale={transform.scale ?? [1, 1, 1]}
       onClick={(event) => {
         event.stopPropagation();
         onSelectPiece?.(piece.id);
@@ -300,16 +303,19 @@ function getTransformFromObject(object: THREE.Object3D): PreviewTransform {
   return {
     position: [object.position.x, object.position.y, object.position.z],
     rotation: [object.rotation.x, object.rotation.y, object.rotation.z],
+    scale: [object.scale.x, object.scale.y, object.scale.z],
   };
 }
 
 function SelectedPieceTransformGizmo({
   pieceId,
   object,
+  mode,
   onCommitTransform,
 }: {
   pieceId: string;
   object: THREE.Group | null;
+  mode: TransformMode;
   onCommitTransform: (pieceId: string, transform: PreviewTransform) => void;
 }) {
   const pendingTransformRef = useRef<PreviewTransform | null>(null);
@@ -345,10 +351,11 @@ function SelectedPieceTransformGizmo({
   return (
     <TransformControls
       object={object}
-      mode="translate"
+      mode={mode}
       space="world"
       size={0.75}
       translationSnap={0.01}
+      rotationSnap={Math.PI / 12}
       onObjectChange={() => {
         isDraggingRef.current = true;
         pendingTransformRef.current = getTransformFromObject(object);
@@ -364,6 +371,8 @@ function GarmentPreview({
   patternUnitsPerMillimetre,
   onSelectPiece,
   onUpdatePiecePreviewTransform,
+  transformMode,
+  onSelectedObjectChange,
 }: {
   pieces: PatternPiece[];
   selectedPieceId?: string | null;
@@ -373,12 +382,18 @@ function GarmentPreview({
     pieceId: string,
     transform: PreviewTransform,
   ) => void;
+  transformMode: TransformMode;
+  onSelectedObjectChange?: (object: THREE.Group | null) => void;
 }) {
   const objectsByPieceIdRef = useRef(new Map<string, THREE.Group>());
 
   const [selectedObject, setSelectedObject] = useState<THREE.Group | null>(
     null,
   );
+
+  useEffect(() => {
+    onSelectedObjectChange?.(selectedObject);
+  }, [onSelectedObjectChange, selectedObject]);
 
   const selectedPieceIdRef = useRef(selectedPieceId);
 
@@ -432,6 +447,7 @@ function GarmentPreview({
           pieceId={selectedPieceId}
           object={selectedObject}
           onCommitTransform={onUpdatePiecePreviewTransform}
+          mode={transformMode}
         />
       )}
     </>
@@ -446,50 +462,122 @@ export function ThreePreview({
   onUpdatePiecePreviewTransform,
   onClearSelection,
 }: ThreePreviewProps) {
+  const [transformMode, setTransformMode] =
+    useState<TransformMode>("translate");
+
+  const selectedPanelObjectRef = useRef<THREE.Group | null>(null);
+
+  const [hasSelectedPanelObject, setHasSelectedPanelObject] = useState(false);
+
+  const handleSelectedObjectChange = useCallback(
+    (object: THREE.Group | null) => {
+      selectedPanelObjectRef.current = object;
+      setHasSelectedPanelObject(object !== null);
+    },
+    [],
+  );
+  const selectedPiece = pieces.find((piece) => piece.id === selectedPieceId);
+
   return (
-    <Canvas
-      shadows
-      onPointerMissed={() => onClearSelection?.()}
-      camera={{
-        position: [0, 1.3, 4],
-        fov: 40,
-        near: 0.01,
-        far: 100,
-      }}
-      style={{
-        width: "100%",
-        height: "100%",
-        background: "#262626",
-      }}
-    >
-      <Suspense fallback={<LoadingAvatar />}>
-        <color attach="background" args={["#262626"]} />
+    <div className="three-preview">
+      <Canvas
+        shadows
+        onPointerMissed={() => onClearSelection?.()}
+        camera={{
+          position: [0, 1.3, 4],
+          fov: 40,
+          near: 0.01,
+          far: 100,
+        }}
+        style={{
+          width: "100%",
+          height: "100%",
+          background: "#262626",
+        }}
+      >
+        <Suspense fallback={<LoadingAvatar />}>
+          <color attach="background" args={["#262626"]} />
 
-        <ambientLight intensity={2} />
+          <ambientLight intensity={2} />
 
-        <directionalLight castShadow intensity={3} position={[3, 5, 4]} />
+          <directionalLight castShadow intensity={3} position={[3, 5, 4]} />
 
-        <gridHelper args={[10, 10]} />
+          <gridHelper args={[10, 10]} />
 
-        <AvatarModel onClearSelection={onClearSelection} modelUrl={modelUrl} />
+          <AvatarModel
+            onClearSelection={onClearSelection}
+            modelUrl={modelUrl}
+          />
 
-        <GarmentPreview
-          pieces={pieces}
-          selectedPieceId={selectedPieceId}
-          patternUnitsPerMillimetre={patternUnitsPerMillimetre}
-          onSelectPiece={onSelectPiece}
-          onUpdatePiecePreviewTransform={onUpdatePiecePreviewTransform}
+          <GarmentPreview
+            pieces={pieces}
+            selectedPieceId={selectedPieceId}
+            patternUnitsPerMillimetre={patternUnitsPerMillimetre}
+            onSelectPiece={onSelectPiece}
+            onUpdatePiecePreviewTransform={onUpdatePiecePreviewTransform}
+            transformMode={transformMode}
+            onSelectedObjectChange={handleSelectedObjectChange}
+          />
+        </Suspense>
+
+        <OrbitControls
+          makeDefault
+          enablePan={false}
+          enableDamping
+          target={[0, 1, 0]}
+          minDistance={1}
+          maxDistance={8}
         />
-      </Suspense>
+      </Canvas>
 
-      <OrbitControls
-        makeDefault
-        enablePan={false}
-        enableDamping
-        target={[0, 1, 0]}
-        minDistance={1}
-        maxDistance={8}
-      />
-    </Canvas>
+      {selectedPiece && hasSelectedPanelObject && (
+        <div
+          className="three-toolbar"
+          role="toolbar"
+          aria-label="3D pattern piece tools"
+        >
+          <span className="three-toolbar__name">{selectedPiece.name}</span>
+
+          <button
+            className={transformMode === "translate" ? "active" : ""}
+            type="button"
+            onClick={() => setTransformMode("translate")}
+          >
+            Move
+          </button>
+
+          <button
+            className={transformMode === "rotate" ? "active" : ""}
+            type="button"
+            onClick={() => setTransformMode("rotate")}
+          >
+            Rotate
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const object = selectedPanelObjectRef.current;
+
+              if (!object) {
+                return;
+              }
+
+              const currentTransform = getTransformFromObject(object);
+
+              onUpdatePiecePreviewTransform(selectedPiece.id, {
+                ...currentTransform,
+                scale: [
+                  -(currentTransform.scale?.[0] ?? 1),
+                  currentTransform.scale?.[1] ?? 1,
+                  currentTransform.scale?.[2] ?? 1,
+                ],
+              });
+            }}
+          >
+            Flip
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
