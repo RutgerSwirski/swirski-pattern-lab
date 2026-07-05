@@ -1,6 +1,6 @@
 import type Konva from "konva";
 import { useRef, useState } from "react";
-import { Circle, Group, Line, Rect, Text } from "react-konva";
+import { Circle, Group, Rect, Shape, Text } from "react-konva";
 
 import {
   getClosestPointOnPatternSegment,
@@ -290,9 +290,14 @@ export function PatternPieceEdges({
         }
 
         return (
-          <Line
+          <Shape
             key={`insert-hit-${edge.id}`}
-            points={[edge.start.x, edge.start.y, edge.end.x, edge.end.y]}
+            sceneFunc={(context, shape) => {
+              drawEdgeHitPath(context, shape, edge);
+            }}
+            hitFunc={(context, shape) => {
+              drawEdgeHitPath(context, shape, edge);
+            }}
             stroke="rgba(37, 99, 235, 0.01)"
             strokeWidth={10 / camera.scale}
             hitStrokeWidth={14 / camera.scale}
@@ -426,4 +431,31 @@ function getPatternEdges(piece: PatternPiece): PatternEdge[] {
       };
     })
     .filter((edge) => edge !== null);
+}
+
+function drawEdgeHitPath(
+  context: Konva.Context,
+  shape: Konva.Shape,
+  edge: PatternEdge,
+) {
+  context.beginPath();
+  context.moveTo(edge.start.x, edge.start.y);
+
+  if (edge.isBezier) {
+    const controlA = edge.start.curveOut ?? edge.start;
+    const controlB = edge.end.curveIn ?? edge.end;
+
+    context.bezierCurveTo(
+      controlA.x,
+      controlA.y,
+      controlB.x,
+      controlB.y,
+      edge.end.x,
+      edge.end.y,
+    );
+  } else {
+    context.lineTo(edge.end.x, edge.end.y);
+  }
+
+  context.strokeShape(shape);
 }

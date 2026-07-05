@@ -269,3 +269,35 @@ test("edge curve focus only shows handles for that edge", async ({ page }) => {
   expect(await countGreenPixelsNear(page, edgeHandle)).toBeGreaterThan(10);
   expect(await countGreenPixelsNear(page, adjacentHandle)).toBeGreaterThan(10);
 });
+
+test("curved edges are selectable away from their original chord", async ({
+  page,
+}) => {
+  await openEditor(page);
+
+  const topEdge = patternPointToScreen({ x: 0, y: -160 });
+  const leftOutHandle = patternPointToScreen({ x: -40, y: -160 });
+  const movedLeftOutHandle = patternPointToScreen({ x: -40, y: -80 });
+  const curvedEdgePoint = patternPointToScreen({ x: 0, y: -130 });
+
+  await page.getByRole("button", { name: "Curve" }).click();
+  await page.mouse.dblclick(topEdge.x, topEdge.y);
+  await page.waitForTimeout(200);
+
+  await page.mouse.move(leftOutHandle.x, leftOutHandle.y);
+  await page.mouse.down();
+  await page.mouse.move(movedLeftOutHandle.x, movedLeftOutHandle.y, {
+    steps: 10,
+  });
+  await page.mouse.up();
+  await page.waitForTimeout(200);
+
+  await page.getByRole("button", { name: "Add point" }).click();
+  await storeCanvasSnapshot(page, "before-curve-insert");
+  await page.mouse.click(curvedEdgePoint.x, curvedEdgePoint.y);
+  await page.waitForTimeout(300);
+
+  expect(await countCanvasDiff(page, "before-curve-insert")).toBeGreaterThan(
+    100,
+  );
+});
