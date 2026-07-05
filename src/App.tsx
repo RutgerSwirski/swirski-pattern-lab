@@ -57,13 +57,9 @@ function App() {
       <Toolbar
         activeTool={editor.activeTool}
         canRedo={editor.canRedo}
-        canCreateSymmetry={Boolean(
-          editor.selectedPiece && !editor.selectedPiece.symmetry,
-        )}
         canUndo={editor.canUndo}
         draftPointCount={editor.draftPoints.length}
         onCancelDraft={editor.cancelDraftPiece}
-        onCreateSymmetry={editor.createSymmetricPiece}
         onRedo={editor.redo}
         onFinishDraft={editor.finishDraftPiece}
         onSelectTool={editor.setActiveTool}
@@ -81,6 +77,8 @@ function App() {
       {editor.activeTool === "select" && editor.selectedPiece && (
         <PieceToolBar
           activeTool={editor.pieceTool}
+          canCreateSymmetry={!editor.selectedPiece.symmetry}
+          onCreateSymmetry={editor.createSymmetricPiece}
           onSelectTool={editor.setPieceTool}
         />
       )}

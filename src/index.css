@@ -90,6 +90,19 @@ canvas {
   border-color: #2563eb;
 }
 
+.piece-toolbar button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.piece-toolbar__divider {
+  flex: 0 0 auto;
+  width: 1px;
+  min-height: 26px;
+  margin: 2px 2px;
+  background: #d8d8d8;
+}
+
 .piece-inspector {
   position: fixed;
   z-index: 10;

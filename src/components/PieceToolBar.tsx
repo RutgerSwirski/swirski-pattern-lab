@@ -2,6 +2,8 @@ import type { PieceTool } from "../types";
 
 type PieceToolBarProps = {
   activeTool: PieceTool;
+  canCreateSymmetry: boolean;
+  onCreateSymmetry: () => void;
   onSelectTool: (tool: PieceTool) => void;
 };
 
@@ -13,6 +15,8 @@ const PIECE_TOOLS: Array<{ id: PieceTool; label: string }> = [
 
 export function PieceToolBar({
   activeTool,
+  canCreateSymmetry,
+  onCreateSymmetry,
   onSelectTool,
 }: PieceToolBarProps) {
   return (
@@ -28,6 +32,16 @@ export function PieceToolBar({
           {tool.label}
         </button>
       ))}
+
+      <span className="piece-toolbar__divider" aria-hidden="true" />
+
+      <button
+        type="button"
+        onClick={onCreateSymmetry}
+        disabled={!canCreateSymmetry}
+      >
+        Mirror
+      </button>
     </div>
   );
 }
