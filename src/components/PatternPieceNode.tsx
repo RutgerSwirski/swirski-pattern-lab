@@ -1,4 +1,5 @@
 import type Konva from "konva";
+import { useState } from "react";
 import { Circle, Group, Line, Rect, Shape, Text } from "react-konva";
 
 import {
@@ -94,6 +95,7 @@ export function PatternPieceNode({
   onUpdateCurveHandle,
   onUpdatePiecePosition,
 }: PatternPieceNodeProps) {
+  const [hoveredPointId, setHoveredPointId] = useState<string | null>(null);
   const angles = piece.points
     .map((point, index) => {
       const previous =
@@ -337,96 +339,114 @@ export function PatternPieceNode({
         })}
 
       {isSelected &&
-        piece.points.map((point) => (
-          <Circle
-            key={point.id}
-            x={point.x}
-            y={point.y}
-            radius={4 / camera.scale}
-            fill="#ffffff"
-            stroke="#2563eb"
-            strokeWidth={1 / camera.scale}
-            draggable={canMoveGeometry}
-            onMouseDown={(event) => {
-              event.cancelBubble = true;
+        piece.points.map((point) => {
+          const isHovered = hoveredPointId === point.id;
 
-              if (canMoveGeometry) {
-                onBeginHistoryTransaction();
-                commitHistoryTransactionOnPointerRelease();
-              }
-            }}
-            onTouchStart={(event) => {
-              event.cancelBubble = true;
+          return (
+            <Circle
+              key={point.id}
+              x={point.x}
+              y={point.y}
+              radius={(isHovered ? 7 : 4) / camera.scale}
+              fill={isHovered ? "#dbeafe" : "#ffffff"}
+              stroke={isHovered ? "#1d4ed8" : "#2563eb"}
+              strokeWidth={(isHovered ? 1.8 : 1) / camera.scale}
+              shadowColor={isHovered ? "#2563eb" : undefined}
+              shadowBlur={isHovered ? 10 / camera.scale : 0}
+              shadowOpacity={isHovered ? 0.25 : 0}
+              draggable={canMoveGeometry}
+              onMouseEnter={() => {
+                setHoveredPointId(point.id);
+              }}
+              onMouseLeave={() => {
+                setHoveredPointId((currentPointId) =>
+                  currentPointId === point.id ? null : currentPointId,
+                );
+              }}
+              onMouseDown={(event) => {
+                event.cancelBubble = true;
 
-              if (canMoveGeometry) {
-                onBeginHistoryTransaction();
-                commitHistoryTransactionOnPointerRelease();
-              }
-            }}
-            onMouseUp={(event) => {
-              event.cancelBubble = true;
+                if (canMoveGeometry) {
+                  onBeginHistoryTransaction();
+                  commitHistoryTransactionOnPointerRelease();
+                }
+              }}
+              onTouchStart={(event) => {
+                event.cancelBubble = true;
+                setHoveredPointId(point.id);
 
-              if (canMoveGeometry) {
-                commitHistoryTransactionAfterDragEnd();
-              }
-            }}
-            onTouchEnd={(event) => {
-              event.cancelBubble = true;
+                if (canMoveGeometry) {
+                  onBeginHistoryTransaction();
+                  commitHistoryTransactionOnPointerRelease();
+                }
+              }}
+              onMouseUp={(event) => {
+                event.cancelBubble = true;
 
-              if (canMoveGeometry) {
-                commitHistoryTransactionAfterDragEnd();
-              }
-            }}
-            onDblClick={(event) => {
-              event.cancelBubble = true;
-              onSelectPieceTool("curve");
-              onFocusPatternPoint(piece.id, point.id);
-            }}
-            onDblTap={(event) => {
-              event.cancelBubble = true;
-              onSelectPieceTool("curve");
-              onFocusPatternPoint(piece.id, point.id);
-            }}
-            onClick={(event) => {
-              event.cancelBubble = true;
+                if (canMoveGeometry) {
+                  commitHistoryTransactionAfterDragEnd();
+                }
+              }}
+              onTouchEnd={(event) => {
+                event.cancelBubble = true;
+                setHoveredPointId(null);
 
-              if (pieceTool === "curve") {
+                if (canMoveGeometry) {
+                  commitHistoryTransactionAfterDragEnd();
+                }
+              }}
+              onDblClick={(event) => {
+                event.cancelBubble = true;
+                onSelectPieceTool("curve");
                 onFocusPatternPoint(piece.id, point.id);
-              }
-            }}
-            onTap={(event) => {
-              event.cancelBubble = true;
-
-              if (pieceTool === "curve") {
+              }}
+              onDblTap={(event) => {
+                event.cancelBubble = true;
+                onSelectPieceTool("curve");
                 onFocusPatternPoint(piece.id, point.id);
-              }
-            }}
-            onDragStart={(event) => {
-              event.cancelBubble = true;
-              onBeginHistoryTransaction();
-            }}
-            onDragMove={(event) => {
-              event.cancelBubble = true;
+              }}
+              onClick={(event) => {
+                event.cancelBubble = true;
 
-              const position = event.target.position();
-              const x = snapToGrid(position.x);
-              const y = snapToGrid(position.y);
+                if (pieceTool === "curve") {
+                  onFocusPatternPoint(piece.id, point.id);
+                }
+              }}
+              onTap={(event) => {
+                event.cancelBubble = true;
 
-              onUpdatePatternPoint(piece.id, point.id, x, y);
-              event.target.position({ x, y });
-            }}
-            onDragEnd={(event) => {
-              event.cancelBubble = true;
+                if (pieceTool === "curve") {
+                  onFocusPatternPoint(piece.id, point.id);
+                }
+              }}
+              onDragStart={(event) => {
+                event.cancelBubble = true;
+                onBeginHistoryTransaction();
+              }}
+              onDragMove={(event) => {
+                event.cancelBubble = true;
 
-              const position = event.target.position();
-              const x = snapToGrid(position.x);
-              const y = snapToGrid(position.y);
+                const position = event.target.position();
+                const x = snapToGrid(position.x);
+                const y = snapToGrid(position.y);
 
-              event.target.position({ x, y });
-              onCommitHistoryTransaction();
-            }}
-          />
-        ))}
+                onUpdatePatternPoint(piece.id, point.id, x, y);
+                event.target.position({ x, y });
+              }}
+              onDragEnd={(event) => {
+                event.cancelBubble = true;
+
+                const position = event.target.position();
+                const x = snapToGrid(position.x);
+                const y = snapToGrid(position.y);
+
+                event.target.position({ x, y });
+                setHoveredPointId(null);
+                onCommitHistoryTransaction();
+              }}
+            />
+          );
+        })}
 
       {isSelected &&
         pieceTool === "curve" &&

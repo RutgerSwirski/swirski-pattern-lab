@@ -373,18 +373,6 @@ export function PatternPieceEdges({
         );
       })}
 
-      {canAddPoint && hoverPoint && (
-        <Circle
-          x={hoverPoint.point.x}
-          y={hoverPoint.point.y}
-          radius={4 / camera.scale}
-          fill="rgba(37, 99, 235, 0.16)"
-          stroke="#2563eb"
-          strokeWidth={1 / camera.scale}
-          listening={false}
-        />
-      )}
-
       {edges.map((edge) => {
         const labelText = `${Math.round(edge.length)} mm`;
         const labelWidth = 58 / (MM_TO_PX * camera.scale);
@@ -424,6 +412,24 @@ export function PatternPieceEdges({
           </Group>
         );
       })}
+
+      {canAddPoint && hoverPoint && (
+        <Group x={hoverPoint.point.x} y={hoverPoint.point.y} listening={false}>
+          <Circle
+            radius={7 / camera.scale}
+            fill="rgba(37, 99, 235, 0.16)"
+            stroke="#ffffff"
+            strokeWidth={3 / camera.scale}
+          />
+
+          <Circle
+            radius={4.5 / camera.scale}
+            fill="#ffffff"
+            stroke="#2563eb"
+            strokeWidth={1.5 / camera.scale}
+          />
+        </Group>
+      )}
     </>
   );
 }
