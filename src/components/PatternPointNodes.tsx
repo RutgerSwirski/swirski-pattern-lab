@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Circle } from "react-konva";
 
 import { snapToGrid } from "../lib/geometry";
@@ -8,7 +8,6 @@ type PatternPointNodesProps = {
   camera: Camera;
   canMoveGeometry: boolean;
   piece: PatternPiece;
-  pieceTool: PieceTool;
   onBeginHistoryTransaction: () => void;
   onCommitHistoryTransaction: () => void;
   onFocusPatternPoint: (pieceId: string, pointId: string) => void;
@@ -25,7 +24,6 @@ export function PatternPointNodes({
   camera,
   canMoveGeometry,
   piece,
-  pieceTool,
   onBeginHistoryTransaction,
   onCommitHistoryTransaction,
   onFocusPatternPoint,
@@ -33,6 +31,7 @@ export function PatternPointNodes({
   onUpdatePatternPoint,
 }: PatternPointNodesProps) {
   const [hoveredPointId, setHoveredPointId] = useState<string | null>(null);
+  const dragMoved = useRef(false);
 
   function commitHistoryTransactionAfterDragEnd() {
     onCommitHistoryTransaction();
@@ -118,23 +117,33 @@ export function PatternPointNodes({
             onClick={(event) => {
               event.cancelBubble = true;
 
-              if (pieceTool === "curve") {
-                onFocusPatternPoint(piece.id, point.id);
+              if (dragMoved.current) {
+                dragMoved.current = false;
+                return;
               }
+
+              onSelectPieceTool("curve");
+              onFocusPatternPoint(piece.id, point.id);
             }}
             onTap={(event) => {
               event.cancelBubble = true;
 
-              if (pieceTool === "curve") {
-                onFocusPatternPoint(piece.id, point.id);
+              if (dragMoved.current) {
+                dragMoved.current = false;
+                return;
               }
+
+              onSelectPieceTool("curve");
+              onFocusPatternPoint(piece.id, point.id);
             }}
             onDragStart={(event) => {
               event.cancelBubble = true;
+              dragMoved.current = false;
               onBeginHistoryTransaction();
             }}
             onDragMove={(event) => {
               event.cancelBubble = true;
+              dragMoved.current = true;
 
               const position = event.target.position();
               const x = snapToGrid(position.x);

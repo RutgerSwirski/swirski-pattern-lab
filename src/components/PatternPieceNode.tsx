@@ -174,7 +174,6 @@ export function PatternPieceNode({
           camera={camera}
           canMoveGeometry={canMoveGeometry}
           piece={piece}
-          pieceTool={pieceTool}
           onBeginHistoryTransaction={onBeginHistoryTransaction}
           onCommitHistoryTransaction={onCommitHistoryTransaction}
           onFocusPatternPoint={onFocusPatternPoint}

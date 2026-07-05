@@ -271,6 +271,22 @@ test("double-clicking an edge shows bezier handles", async ({ page }) => {
   expect(afterHandles).toBeGreaterThan(beforeHandles + 20);
 });
 
+test("single-clicking a point shows both point bezier handles", async ({
+  page,
+}) => {
+  await openEditor(page);
+
+  const topLeft = patternPointToScreen({ x: -120, y: -160 });
+  const curveInHandle = patternPointToScreen({ x: -126.6667, y: -46.6667 });
+  const curveOutHandle = patternPointToScreen({ x: -40, y: -160 });
+
+  await page.mouse.click(topLeft.x, topLeft.y);
+  await page.waitForTimeout(200);
+
+  expect(await countGreenPixelsNear(page, curveInHandle)).toBeGreaterThan(10);
+  expect(await countGreenPixelsNear(page, curveOutHandle)).toBeGreaterThan(10);
+});
+
 test("edge curve focus only shows handles for that edge", async ({ page }) => {
   await openEditor(page);
 
