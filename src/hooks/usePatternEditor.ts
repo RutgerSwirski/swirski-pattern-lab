@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { mirrorPointPosition } from "../lib/geometry";
 import {
   applyHistoryUpdate,
   commitHistoryTransaction as commitHistoryTransactionState,
@@ -8,12 +7,18 @@ import {
   undoHistory,
   type HistoryState,
 } from "../lib/history";
-import { clearBezierSegmentHandles } from "../lib/patternEditing";
 import {
-  createSymmetricPiecePair,
-  getSymmetricLocalPosition,
-  getSymmetricPatternPoint,
-} from "../lib/symmetry";
+  clearBezierSegmentInPieces,
+  deletePatternPointsInPieces,
+  focusPatternPointsInPieces,
+  insertPatternPointInPieces,
+  translatePatternSegmentInPieces,
+  updateCurveHandleInPieces,
+  updatePatternPointInPieces,
+  updatePieceMetadataInPieces,
+  updatePiecePositionInPieces,
+} from "../lib/patternOperations";
+import { createSymmetricPiecePair } from "../lib/symmetry";
 import type {
   PatternPiece,
   PatternPoint,
@@ -25,11 +30,6 @@ import type {
 type FocusedPoint = {
   pieceId: string;
   pointIds: string[];
-};
-
-type PiecePair = {
-  editedPiece: PatternPiece;
-  linkedPiece: PatternPiece | null;
 };
 
 type PieceHistory = HistoryState<PatternPiece[]>;
@@ -52,25 +52,6 @@ function createInitialPiece(): PatternPiece {
     ],
     x: 0,
     y: 0,
-  };
-}
-
-function getPiecePair(
-  pieces: PatternPiece[],
-  pieceId: string,
-): PiecePair | null {
-  const editedPiece = pieces.find((piece) => piece.id === pieceId);
-
-  if (!editedPiece) {
-    return null;
-  }
-
-  return {
-    editedPiece,
-    linkedPiece: editedPiece.symmetry
-      ? (pieces.find((piece) => piece.id === editedPiece.symmetry?.pairId) ??
-        null)
-      : null,
   };
 }
 
@@ -103,10 +84,12 @@ export function usePatternEditor() {
 
   const updatePieces = useCallback(
     (updater: (currentPieces: PatternPiece[]) => PatternPiece[]) => {
+      const transactionStart = historyTransactionStart.current;
+
       setPieceHistory((currentHistory) => {
         const nextPieces = updater(currentHistory.present);
 
-        if (historyTransactionStart.current) {
+        if (transactionStart) {
           historyTransactionChanged.current =
             historyTransactionChanged.current ||
             nextPieces !== currentHistory.present;
@@ -114,7 +97,7 @@ export function usePatternEditor() {
 
         return applyHistoryUpdate(currentHistory, nextPieces, {
           maxHistorySteps: MAX_HISTORY_STEPS,
-          transactionStart: historyTransactionStart.current,
+          transactionStart,
         });
       });
     },
@@ -122,24 +105,20 @@ export function usePatternEditor() {
   );
 
   const beginHistoryTransaction = useCallback(() => {
-    setPieceHistory((currentHistory) => {
-      if (!historyTransactionStart.current) {
-        historyTransactionStart.current = currentHistory.present;
-        historyTransactionChanged.current = false;
-      }
-
-      return currentHistory;
-    });
-  }, []);
+    if (!historyTransactionStart.current) {
+      historyTransactionStart.current = pieceHistory.present;
+      historyTransactionChanged.current = false;
+    }
+  }, [pieceHistory.present]);
 
   const commitHistoryTransaction = useCallback(() => {
+    const transactionStart = historyTransactionStart.current;
+    const didChange = historyTransactionChanged.current;
+
+    historyTransactionStart.current = null;
+    historyTransactionChanged.current = false;
+
     setPieceHistory((currentHistory) => {
-      const transactionStart = historyTransactionStart.current;
-      const didChange = historyTransactionChanged.current;
-
-      historyTransactionStart.current = null;
-      historyTransactionChanged.current = false;
-
       return commitHistoryTransactionState(
         currentHistory,
         transactionStart,
@@ -176,60 +155,7 @@ export function usePatternEditor() {
     y: number,
   ) {
     updatePieces((currentPieces) =>
-      currentPieces.map((piece) => {
-        const pair = getPiecePair(currentPieces, pieceId);
-
-        if (
-          !pair ||
-          (piece.id !== pieceId && piece.id !== pair.linkedPiece?.id)
-        ) {
-          return piece;
-        }
-
-        const sourcePoint = pair.editedPiece.points.find(
-          (point) => point.id === pointId,
-        );
-
-        if (!sourcePoint) {
-          return piece;
-        }
-
-        const deltaX = x - sourcePoint.x;
-        const deltaY = y - sourcePoint.y;
-        const updatedSourcePoint = {
-          ...sourcePoint,
-          x,
-          y,
-          curveIn: sourcePoint.curveIn
-            ? {
-                x: sourcePoint.curveIn.x + deltaX,
-                y: sourcePoint.curveIn.y + deltaY,
-              }
-            : undefined,
-          curveOut: sourcePoint.curveOut
-            ? {
-                x: sourcePoint.curveOut.x + deltaX,
-                y: sourcePoint.curveOut.y + deltaY,
-              }
-            : undefined,
-        };
-
-        const updatedPoint =
-          piece.id === pair.linkedPiece?.id && pair.linkedPiece
-            ? getSymmetricPatternPoint(
-                updatedSourcePoint,
-                pair.editedPiece,
-                pair.linkedPiece,
-              )
-            : updatedSourcePoint;
-
-        return {
-          ...piece,
-          points: piece.points.map((point) =>
-            point.id === pointId ? updatedPoint : point,
-          ),
-        };
-      }),
+      updatePatternPointInPieces(currentPieces, pieceId, pointId, x, y),
     );
   }
 
@@ -245,69 +171,14 @@ export function usePatternEditor() {
     }
 
     updatePieces((currentPieces) =>
-      currentPieces.map((piece) => {
-        const pair = getPiecePair(currentPieces, pieceId);
-
-        if (
-          !pair ||
-          (piece.id !== pieceId && piece.id !== pair.linkedPiece?.id)
-        ) {
-          return piece;
-        }
-
-        const movedPointIds = new Set([startPointId, endPointId]);
-        const updatedSourcePoints = pair.editedPiece.points.map((point) => {
-          if (!movedPointIds.has(point.id)) {
-            return point;
-          }
-
-          return {
-            ...point,
-            x: point.x + deltaX,
-            y: point.y + deltaY,
-            curveIn: point.curveIn
-              ? {
-                  x: point.curveIn.x + deltaX,
-                  y: point.curveIn.y + deltaY,
-                }
-              : undefined,
-            curveOut: point.curveOut
-              ? {
-                  x: point.curveOut.x + deltaX,
-                  y: point.curveOut.y + deltaY,
-                }
-              : undefined,
-          };
-        });
-
-        return {
-          ...piece,
-          points: piece.points.map((point) => {
-            if (!movedPointIds.has(point.id)) {
-              return point;
-            }
-
-            const updatedSourcePoint = updatedSourcePoints.find(
-              (sourcePoint) => sourcePoint.id === point.id,
-            );
-
-            if (!updatedSourcePoint) {
-              return point;
-            }
-
-            return piece.id === pair.linkedPiece?.id && pair.linkedPiece
-              ? getSymmetricPatternPoint(
-                  updatedSourcePoint,
-                  {
-                    ...pair.editedPiece,
-                    points: updatedSourcePoints,
-                  },
-                  pair.linkedPiece,
-                )
-              : updatedSourcePoint;
-          }),
-        };
-      }),
+      translatePatternSegmentInPieces(
+        currentPieces,
+        pieceId,
+        startPointId,
+        endPointId,
+        deltaX,
+        deltaY,
+      ),
     );
   }
 
@@ -316,69 +187,7 @@ export function usePatternEditor() {
     setFocusedPoint({ pieceId, pointIds });
 
     updatePieces((currentPieces) =>
-      currentPieces.map((piece) => {
-        const pair = getPiecePair(currentPieces, pieceId);
-
-        if (
-          !pair ||
-          (piece.id !== pieceId && piece.id !== pair.linkedPiece?.id)
-        ) {
-          return piece;
-        }
-
-        return {
-          ...piece,
-          points: piece.points.map((currentPoint) => {
-            if (!pointIds.includes(currentPoint.id)) {
-              return currentPoint;
-            }
-
-            const pointIndex = pair.editedPiece.points.findIndex(
-              (point) => point.id === currentPoint.id,
-            );
-
-            if (pointIndex === -1) {
-              return currentPoint;
-            }
-
-            const point = pair.editedPiece.points[pointIndex];
-
-            if (point.curveIn && point.curveOut) {
-              return currentPoint;
-            }
-
-            const previous =
-              pair.editedPiece.points[
-                (pointIndex - 1 + pair.editedPiece.points.length) %
-                  pair.editedPiece.points.length
-              ];
-            const next =
-              pair.editedPiece.points[
-                (pointIndex + 1) % pair.editedPiece.points.length
-              ];
-
-            const updatedSourcePoint = {
-              ...point,
-              curveIn: point.curveIn ?? {
-                x: point.x + (previous.x - point.x) / 3,
-                y: point.y + (previous.y - point.y) / 3,
-              },
-              curveOut: point.curveOut ?? {
-                x: point.x + (next.x - point.x) / 3,
-                y: point.y + (next.y - point.y) / 3,
-              },
-            };
-
-            return piece.id === pair.linkedPiece?.id && pair.linkedPiece
-              ? getSymmetricPatternPoint(
-                  updatedSourcePoint,
-                  pair.editedPiece,
-                  pair.linkedPiece,
-                )
-              : updatedSourcePoint;
-          }),
-        };
-      }),
+      focusPatternPointsInPieces(currentPieces, pieceId, pointIds),
     );
   }
 
@@ -393,57 +202,19 @@ export function usePatternEditor() {
     position: PointPosition,
   ) {
     updatePieces((currentPieces) =>
-      currentPieces.map((piece) => {
-        const pair = getPiecePair(currentPieces, pieceId);
-
-        if (
-          !pair ||
-          (piece.id !== pieceId && piece.id !== pair.linkedPiece?.id)
-        ) {
-          return piece;
-        }
-
-        const linkedPosition =
-          piece.id === pair.linkedPiece?.id && pair.linkedPiece
-            ? getSymmetricLocalPosition(
-                position,
-                pair.editedPiece,
-                pair.linkedPiece,
-              )
-            : position;
-
-        return {
-          ...piece,
-          points: piece.points.map((point) =>
-            point.id === pointId
-              ? {
-                  ...point,
-                  [handle]: linkedPosition,
-                }
-              : point,
-          ),
-        };
-      }),
+      updateCurveHandleInPieces(
+        currentPieces,
+        pieceId,
+        pointId,
+        handle,
+        position,
+      ),
     );
   }
 
   function clearBezierSegment(pieceId: string, startPointId: string) {
     updatePieces((currentPieces) =>
-      currentPieces.map((piece) => {
-        const pair = getPiecePair(currentPieces, pieceId);
-
-        if (
-          !pair ||
-          (piece.id !== pieceId && piece.id !== pair.linkedPiece?.id)
-        ) {
-          return piece;
-        }
-
-        return {
-          ...piece,
-          points: clearBezierSegmentHandles(piece.points, startPointId),
-        };
-      }),
+      clearBezierSegmentInPieces(currentPieces, pieceId, startPointId),
     );
   }
 
@@ -451,6 +222,7 @@ export function usePatternEditor() {
     pieceId: string,
     afterPointId: string,
     point: PointPosition,
+    progress?: number,
   ) {
     const newPoint = {
       id: makeId("point"),
@@ -458,130 +230,33 @@ export function usePatternEditor() {
     };
 
     updatePieces((currentPieces) =>
-      currentPieces.map((piece) => {
-        const pair = getPiecePair(currentPieces, pieceId);
-
-        if (
-          !pair ||
-          (piece.id !== pieceId && piece.id !== pair.linkedPiece?.id)
-        ) {
-          return piece;
-        }
-
-        const insertIndex = piece.points.findIndex(
-          (currentPoint) => currentPoint.id === afterPointId,
-        );
-
-        if (insertIndex === -1) {
-          return piece;
-        }
-
-        const pointToInsert =
-          piece.id === pair.linkedPiece?.id && pair.linkedPiece
-            ? {
-                id: newPoint.id,
-                ...getSymmetricLocalPosition(
-                  newPoint,
-                  pair.editedPiece,
-                  pair.linkedPiece,
-                ),
-              }
-            : newPoint;
-
-        return {
-          ...piece,
-          points: [
-            ...piece.points.slice(0, insertIndex + 1),
-            pointToInsert,
-            ...piece.points.slice(insertIndex + 1),
-          ],
-        };
-      }),
+      insertPatternPointInPieces(
+        currentPieces,
+        pieceId,
+        afterPointId,
+        newPoint,
+        progress,
+      ),
     );
   }
 
   const deletePatternPoints = useCallback((pieceId: string, pointIds: string[]) => {
-    const idsToDelete = new Set(pointIds);
-
-    updatePieces((currentPieces) => {
-      const pair = getPiecePair(currentPieces, pieceId);
-
-      if (!pair) {
-        return currentPieces;
-      }
-
-      if (pair.editedPiece.points.length - idsToDelete.size < 3) {
-        return currentPieces;
-      }
-
-      return currentPieces.map((piece) => {
-        const isEditedPiece = piece.id === pair.editedPiece.id;
-        const isLinkedPiece = piece.id === pair.linkedPiece?.id;
-
-        if (!isEditedPiece && !isLinkedPiece) {
-          return piece;
-        }
-
-        return {
-          ...piece,
-          points: piece.points.filter((point) => !idsToDelete.has(point.id)),
-        };
-      });
-    });
+    updatePieces((currentPieces) =>
+      deletePatternPointsInPieces(currentPieces, pieceId, pointIds),
+    );
 
     setFocusedPoint(null);
   }, [updatePieces]);
 
   function updatePiecePosition(pieceId: string, x: number, y: number) {
     updatePieces((currentPieces) =>
-      currentPieces.map((piece) => {
-        const pair = getPiecePair(currentPieces, pieceId);
-
-        if (
-          !pair ||
-          (piece.id !== pieceId && piece.id !== pair.linkedPiece?.id)
-        ) {
-          return piece;
-        }
-
-        if (piece.id === pieceId) {
-          return {
-            ...piece,
-            x,
-            y,
-          };
-        }
-
-        if (!pair.linkedPiece || !pair.editedPiece.symmetry) {
-          return piece;
-        }
-
-        const mirroredWorldPosition = mirrorPointPosition(
-          { x, y },
-          pair.editedPiece.symmetry.axisX,
-        );
-
-        return {
-          ...piece,
-          x: mirroredWorldPosition.x,
-          y: mirroredWorldPosition.y,
-        };
-      }),
+      updatePiecePositionInPieces(currentPieces, pieceId, x, y),
     );
   }
 
   function updatePieceMetadata(pieceId: string, metadata: PieceMetadata) {
     updatePieces((currentPieces) =>
-      currentPieces.map((piece) => {
-        const pair = getPiecePair(currentPieces, pieceId);
-
-        return piece.id === pieceId || piece.id === pair?.linkedPiece?.id
-          ? {
-              ...piece,
-              ...metadata,
-            }
-          : piece;
-      }),
+      updatePieceMetadataInPieces(currentPieces, pieceId, metadata),
     );
   }
 

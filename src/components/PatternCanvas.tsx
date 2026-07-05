@@ -45,6 +45,7 @@ type PatternCanvasProps = {
     pieceId: string,
     afterPointId: string,
     point: PointPosition,
+    progress?: number,
   ) => void;
   onSelectPiece: (pieceId: string) => void;
   onSetCamera: Dispatch<SetStateAction<Camera>>;

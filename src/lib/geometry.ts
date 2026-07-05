@@ -91,6 +91,50 @@ export function getCubicTangent(
   };
 }
 
+export function getSplitCubicBezier(
+  start: PointPosition,
+  controlA: PointPosition,
+  controlB: PointPosition,
+  end: PointPosition,
+  progress: number,
+) {
+  const clampedProgress = Math.min(1, Math.max(0, progress));
+  const startControl = getInterpolatedPoint(start, controlA, clampedProgress);
+  const centerControl = getInterpolatedPoint(controlA, controlB, clampedProgress);
+  const endControl = getInterpolatedPoint(controlB, end, clampedProgress);
+  const firstInnerControl = getInterpolatedPoint(
+    startControl,
+    centerControl,
+    clampedProgress,
+  );
+  const secondInnerControl = getInterpolatedPoint(
+    centerControl,
+    endControl,
+    clampedProgress,
+  );
+  const splitPoint = getInterpolatedPoint(
+    firstInnerControl,
+    secondInnerControl,
+    clampedProgress,
+  );
+
+  return {
+    first: {
+      start,
+      controlA: startControl,
+      controlB: firstInnerControl,
+      end: splitPoint,
+    },
+    second: {
+      start: splitPoint,
+      controlA: secondInnerControl,
+      controlB: endControl,
+      end,
+    },
+    point: splitPoint,
+  };
+}
+
 export function getSegmentLabelGeometry(start: PatternPoint, end: PatternPoint) {
   const controlA = start.curveOut ?? start;
   const controlB = end.curveIn ?? end;
@@ -157,12 +201,23 @@ export function getClosestPointOnSegment(
   start: PointPosition,
   end: PointPosition,
 ) {
+  return getClosestPointOnSegmentWithProgress(point, start, end).point;
+}
+
+export function getClosestPointOnSegmentWithProgress(
+  point: PointPosition,
+  start: PointPosition,
+  end: PointPosition,
+) {
   const dx = end.x - start.x;
   const dy = end.y - start.y;
   const lengthSquared = dx * dx + dy * dy;
 
   if (lengthSquared === 0) {
-    return start;
+    return {
+      point: start,
+      progress: 0,
+    };
   }
 
   const progress = Math.min(
@@ -174,9 +229,88 @@ export function getClosestPointOnSegment(
   );
 
   return {
-    x: start.x + dx * progress,
-    y: start.y + dy * progress,
+    point: {
+      x: start.x + dx * progress,
+      y: start.y + dy * progress,
+    },
+    progress,
   };
+}
+
+export function getClosestPointOnCubic(
+  point: PointPosition,
+  start: PointPosition,
+  controlA: PointPosition,
+  controlB: PointPosition,
+  end: PointPosition,
+) {
+  const sampleCount = 80;
+  let bestProgress = 0;
+  let bestDistance = Number.POSITIVE_INFINITY;
+
+  for (let index = 0; index <= sampleCount; index += 1) {
+    const progress = index / sampleCount;
+    const sample = getCubicPoint(start, controlA, controlB, end, progress);
+    const distance = getSquaredDistance(point, sample);
+
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestProgress = progress;
+    }
+  }
+
+  let lower = Math.max(0, bestProgress - 1 / sampleCount);
+  let upper = Math.min(1, bestProgress + 1 / sampleCount);
+
+  for (let index = 0; index < 12; index += 1) {
+    const leftProgress = lower + (upper - lower) / 3;
+    const rightProgress = upper - (upper - lower) / 3;
+    const leftPoint = getCubicPoint(
+      start,
+      controlA,
+      controlB,
+      end,
+      leftProgress,
+    );
+    const rightPoint = getCubicPoint(
+      start,
+      controlA,
+      controlB,
+      end,
+      rightProgress,
+    );
+
+    if (
+      getSquaredDistance(point, leftPoint) <
+      getSquaredDistance(point, rightPoint)
+    ) {
+      upper = rightProgress;
+    } else {
+      lower = leftProgress;
+    }
+  }
+
+  const progress = (lower + upper) / 2;
+
+  return {
+    point: getCubicPoint(start, controlA, controlB, end, progress),
+    progress,
+  };
+}
+
+export function getClosestPointOnPatternSegment(
+  point: PointPosition,
+  start: PatternPoint,
+  end: PatternPoint,
+) {
+  const controlA = start.curveOut ?? start;
+  const controlB = end.curveIn ?? end;
+
+  if (controlA === start && controlB === end) {
+    return getClosestPointOnSegmentWithProgress(point, start, end);
+  }
+
+  return getClosestPointOnCubic(point, start, controlA, controlB, end);
 }
 
 export function getPiecePerimeter(points: PatternPoint[]) {
@@ -309,6 +443,21 @@ function getReadablePointRotation(point: PointPosition) {
   }
 
   return rotation;
+}
+
+function getInterpolatedPoint(
+  start: PointPosition,
+  end: PointPosition,
+  progress: number,
+) {
+  return {
+    x: start.x + (end.x - start.x) * progress,
+    y: start.y + (end.y - start.y) * progress,
+  };
+}
+
+function getSquaredDistance(start: PointPosition, end: PointPosition) {
+  return (end.x - start.x) ** 2 + (end.y - start.y) ** 2;
 }
 
 export function getPointAngleVectors(
