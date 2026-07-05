@@ -3,28 +3,66 @@ import { Canvas } from "@react-three/fiber";
 import { Suspense, useEffect, useMemo } from "react";
 import * as THREE from "three";
 
-import type { PatternPiece, PointPosition } from "../types";
+import type { PatternPiece, PointPosition, PreviewTransform } from "../types";
 
 const METRES_PER_MILLIMETRE = 0.001;
 
-/*
- * Your avatar likely faces towards +Z in the current preview.
- * If the fabric appears behind the body, change 0.35 to -0.35.
- */
-const GARMENT_POSITION: [number, number, number] = [0, 1.2, -0.35];
 type ThreePreviewProps = {
   modelUrl: string;
   pieces: PatternPiece[];
   selectedPieceId?: string | null;
-
-  /*
-   * Your editor probably stores points in pixels rather than millimetres.
-   * Pass MM_TO_PX from patternConfig here.
-   *
-   * If points are already stored in mm, use 1.
-   */
   patternUnitsPerMillimetre?: number;
 };
+
+const DEFAULT_PREVIEW_TRANSFORMS: readonly PreviewTransform[] = [
+  // Front torso
+  {
+    position: [0, 1.2, 0.36],
+    rotation: [0, 0, 0],
+  },
+
+  // Back torso
+  {
+    position: [0, 1.2, -0.36],
+    rotation: [0, Math.PI, 0],
+  },
+
+  // Left side
+  {
+    position: [-0.38, 1.2, 0],
+    rotation: [0, -Math.PI / 2, 0],
+  },
+
+  // Right side
+  {
+    position: [0.38, 1.2, 0],
+    rotation: [0, Math.PI / 2, 0],
+  },
+
+  // Extra pieces sit slightly outward for now
+  {
+    position: [-0.7, 1.45, 0.25],
+    rotation: [0, -0.35, 0],
+  },
+  {
+    position: [0.7, 1.45, 0.25],
+    rotation: [0, 0.35, 0],
+  },
+] as const;
+
+function getPreviewTransform(piece: PatternPiece, index: number) {
+  if (piece.previewTransform) {
+    return piece.previewTransform;
+  }
+
+  const slot =
+    DEFAULT_PREVIEW_TRANSFORMS[index % DEFAULT_PREVIEW_TRANSFORMS.length];
+
+  return {
+    position: [...slot.position] as [number, number, number],
+    rotation: [...slot.rotation] as [number, number, number],
+  };
+}
 
 function AvatarModel({ modelUrl }: { modelUrl: string }) {
   const { scene } = useGLTF(modelUrl);
@@ -111,9 +149,16 @@ function createPatternShape(
 function PatternPiecePanel({
   piece,
   patternUnitsPerMillimetre,
+  transform,
+  isSelected,
 }: {
   piece: PatternPiece;
   patternUnitsPerMillimetre: number;
+  transform: {
+    position: [number, number, number];
+    rotation: [number, number, number];
+  };
+  isSelected: boolean;
 }) {
   const shape = useMemo(() => {
     return createPatternShape(piece, patternUnitsPerMillimetre);
@@ -124,18 +169,20 @@ function PatternPiecePanel({
   }
 
   return (
-    <mesh castShadow receiveShadow position={GARMENT_POSITION}>
-      <shapeGeometry args={[shape]} />
+    <group position={transform.position} rotation={transform.rotation}>
+      <mesh castShadow receiveShadow>
+        <shapeGeometry args={[shape]} />
 
-      <meshStandardMaterial
-        color="#e94b3c"
-        side={THREE.DoubleSide}
-        roughness={0.75}
-        metalness={0}
-        transparent
-        opacity={0.78}
-      />
-    </mesh>
+        <meshStandardMaterial
+          color={isSelected ? "#f04b3a" : "#4c8df5"}
+          side={THREE.DoubleSide}
+          roughness={0.75}
+          transparent
+          opacity={isSelected ? 0.88 : 0.52}
+          depthWrite={false}
+        />
+      </mesh>
+    </group>
   );
 }
 
@@ -148,22 +195,20 @@ function GarmentPreview({
   selectedPieceId?: string | null;
   patternUnitsPerMillimetre: number;
 }) {
-  const previewPiece = useMemo(() => {
-    const selectedPiece = pieces.find((piece) => piece.id === selectedPieceId);
-
-    return selectedPiece ?? pieces.find((piece) => piece.points.length >= 3);
-  }, [pieces, selectedPieceId]);
-
-  if (!previewPiece) {
-    return null;
-  }
+  const drawablePieces = pieces.filter((piece) => piece.points.length >= 3);
 
   return (
-    <PatternPiecePanel
-      key={previewPiece.id}
-      piece={previewPiece}
-      patternUnitsPerMillimetre={patternUnitsPerMillimetre}
-    />
+    <>
+      {drawablePieces.map((piece, index) => (
+        <PatternPiecePanel
+          key={piece.id}
+          piece={piece}
+          isSelected={piece.id === selectedPieceId}
+          transform={getPreviewTransform(piece, index)}
+          patternUnitsPerMillimetre={patternUnitsPerMillimetre}
+        />
+      ))}
+    </>
   );
 }
 

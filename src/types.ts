@@ -16,6 +16,11 @@ export type FocusedCurveHandle = {
   handle: CurveHandle;
 };
 
+export type PreviewTransform = {
+  position: [number, number, number];
+  rotation: [number, number, number];
+};
+
 export type PatternPiece = {
   id: string;
   name: string;
@@ -26,6 +31,9 @@ export type PatternPiece = {
   points: PatternPoint[];
   x: number;
   y: number;
+
+  previewTransform?: PreviewTransform;
+
   symmetry?: {
     pairId: string;
     role: "source" | "mirror";
@@ -47,5 +55,8 @@ export type Viewport = {
 };
 
 export type PieceMetadata = Partial<
-  Pick<PatternPiece, "name" | "lengthMm" | "cornerRadiusMm" | "quantity" | "notes">
+  Pick<
+    PatternPiece,
+    "name" | "lengthMm" | "cornerRadiusMm" | "quantity" | "notes"
+  >
 >;
