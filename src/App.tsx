@@ -7,6 +7,7 @@ import { ThreePreview } from "./components/ThreePreview";
 import { Toolbar } from "./components/Toolbar";
 import { usePatternEditor } from "./hooks/usePatternEditor";
 import type { Camera, PointPosition, Viewport } from "./types";
+import { MM_TO_PX } from "./lib/patternConfig";
 
 function App() {
   const editorPanelRef = useRef<HTMLDivElement>(null);
@@ -160,6 +161,8 @@ function App() {
         <ThreePreview
           modelUrl="/models/swirski_avatar_static_source_test_1.glb"
           pieces={editor.pieces}
+          selectedPieceId={editor.selectedPieceId}
+          patternUnitsPerMillimetre={MM_TO_PX}
         >
           {/*
       Later:
