@@ -291,6 +291,9 @@ function App() {
           pieces={editor.pieces}
           selectedPieceId={editor.selectedPieceId}
           patternUnitsPerMillimetre={MM_TO_PX}
+          onSelectPiece={editor.selectPiece}
+          onUpdatePiecePreviewTransform={editor.updatePiecePreviewTransform}
+          onClearSelection={editor.clearSelection}
         />
       </aside>
     </main>

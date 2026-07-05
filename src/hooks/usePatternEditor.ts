@@ -31,6 +31,7 @@ import type {
   PieceMetadata,
   PointPosition,
   Tool,
+  PreviewTransform,
 } from "../types";
 
 type FocusedPoint = {
@@ -305,13 +306,16 @@ export function usePatternEditor() {
     );
   }
 
-  const deletePatternPoints = useCallback((pieceId: string, pointIds: string[]) => {
-    updatePieces((currentPieces) =>
-      deletePatternPointsInPieces(currentPieces, pieceId, pointIds),
-    );
+  const deletePatternPoints = useCallback(
+    (pieceId: string, pointIds: string[]) => {
+      updatePieces((currentPieces) =>
+        deletePatternPointsInPieces(currentPieces, pieceId, pointIds),
+      );
 
-    setFocusedPoint(null);
-  }, [updatePieces]);
+      setFocusedPoint(null);
+    },
+    [updatePieces],
+  );
 
   const deleteSelectedPiece = useCallback(() => {
     if (!selectedPieceId) {
@@ -568,6 +572,44 @@ export function usePatternEditor() {
     };
   }, [copySelectedPiece, pasteCopiedPiece, selectedPiece]);
 
+  const updatePiecePreviewTransform = useCallback(
+    (pieceId: string, previewTransform: PreviewTransform) => {
+      updatePieces((currentPieces) => {
+        const currentPiece = currentPieces.find(
+          (piece) => piece.id === pieceId,
+        );
+
+        if (!currentPiece) {
+          return currentPieces;
+        }
+
+        const currentTransform = currentPiece.previewTransform;
+
+        const hasNotChanged =
+          currentTransform?.position[0] === previewTransform.position[0] &&
+          currentTransform?.position[1] === previewTransform.position[1] &&
+          currentTransform?.position[2] === previewTransform.position[2] &&
+          currentTransform?.rotation[0] === previewTransform.rotation[0] &&
+          currentTransform?.rotation[1] === previewTransform.rotation[1] &&
+          currentTransform?.rotation[2] === previewTransform.rotation[2];
+
+        if (hasNotChanged) {
+          return currentPieces;
+        }
+
+        return currentPieces.map((piece) =>
+          piece.id === pieceId
+            ? {
+                ...piece,
+                previewTransform,
+              }
+            : piece,
+        );
+      });
+    },
+    [updatePieces],
+  );
+
   return {
     activeTool,
     bendPatternSegment,
@@ -607,5 +649,6 @@ export function usePatternEditor() {
     updatePatternPoint,
     updatePieceMetadata,
     updatePiecePosition,
+    updatePiecePreviewTransform,
   };
 }

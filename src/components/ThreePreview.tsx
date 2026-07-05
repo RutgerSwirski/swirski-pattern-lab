@@ -1,6 +1,18 @@
-import { Html, OrbitControls, useGLTF } from "@react-three/drei";
+import {
+  Html,
+  OrbitControls,
+  useGLTF,
+  TransformControls,
+} from "@react-three/drei";
 import { Canvas } from "@react-three/fiber";
-import { Suspense, useEffect, useMemo } from "react";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import * as THREE from "three";
 
 import type { PatternPiece, PointPosition, PreviewTransform } from "../types";
@@ -12,6 +24,14 @@ type ThreePreviewProps = {
   pieces: PatternPiece[];
   selectedPieceId?: string | null;
   patternUnitsPerMillimetre?: number;
+
+  onSelectPiece?: (pieceId: string) => void;
+  onUpdatePiecePreviewTransform?: (
+    pieceId: string,
+    transform: PreviewTransform,
+  ) => void;
+
+  onClearSelection?: () => void;
 };
 
 const DEFAULT_PREVIEW_TRANSFORMS: readonly PreviewTransform[] = [
@@ -64,7 +84,13 @@ function getPreviewTransform(piece: PatternPiece, index: number) {
   };
 }
 
-function AvatarModel({ modelUrl }: { modelUrl: string }) {
+function AvatarModel({
+  modelUrl,
+  onClearSelection,
+}: {
+  modelUrl: string;
+  onClearSelection?: () => void;
+}) {
   const { scene } = useGLTF(modelUrl);
 
   useEffect(() => {
@@ -76,7 +102,16 @@ function AvatarModel({ modelUrl }: { modelUrl: string }) {
     });
   }, [scene]);
 
-  return <primitive object={scene} />;
+  return (
+    <group
+      onClick={(event) => {
+        event.stopPropagation();
+        onClearSelection?.();
+      }}
+    >
+      <primitive object={scene} />
+    </group>
+  );
 }
 
 function LoadingAvatar() {
@@ -151,28 +186,70 @@ function PatternPiecePanel({
   patternUnitsPerMillimetre,
   transform,
   isSelected,
+  onSelectPiece,
+  onRegisterObject,
+  onUnregisterObject,
 }: {
   piece: PatternPiece;
   patternUnitsPerMillimetre: number;
-  transform: {
-    position: [number, number, number];
-    rotation: [number, number, number];
-  };
+  transform: PreviewTransform;
   isSelected: boolean;
+  onSelectPiece?: (pieceId: string) => void;
+  onRegisterObject: (pieceId: string, object: THREE.Group) => void;
+  onUnregisterObject: (pieceId: string) => void;
 }) {
-  const shape = useMemo(() => {
-    return createPatternShape(piece, patternUnitsPerMillimetre);
+  const panelRef = useRef<THREE.Group>(null);
+
+  const geometry = useMemo(() => {
+    const shape = createPatternShape(piece, patternUnitsPerMillimetre);
+
+    if (!shape) {
+      return null;
+    }
+
+    const nextGeometry = new THREE.ShapeGeometry(shape);
+
+    // Guarantees the gizmo pivot is visually centred on the fabric panel.
+    nextGeometry.center();
+
+    return nextGeometry;
   }, [piece, patternUnitsPerMillimetre]);
 
-  if (!shape) {
+  useEffect(() => {
+    const panel = panelRef.current;
+
+    if (!panel) {
+      return;
+    }
+
+    onRegisterObject(piece.id, panel);
+
+    return () => {
+      onUnregisterObject(piece.id);
+    };
+  }, [onRegisterObject, onUnregisterObject, piece.id]);
+
+  useEffect(() => {
+    return () => {
+      geometry?.dispose();
+    };
+  }, [geometry]);
+
+  if (!geometry) {
     return null;
   }
 
   return (
-    <group position={transform.position} rotation={transform.rotation}>
-      <mesh castShadow receiveShadow>
-        <shapeGeometry args={[shape]} />
-
+    <group
+      ref={panelRef}
+      position={transform.position}
+      rotation={transform.rotation}
+      onClick={(event) => {
+        event.stopPropagation();
+        onSelectPiece?.(piece.id);
+      }}
+    >
+      <mesh geometry={geometry} castShadow receiveShadow>
         <meshStandardMaterial
           color={isSelected ? "#f04b3a" : "#4c8df5"}
           side={THREE.DoubleSide}
@@ -186,15 +263,120 @@ function PatternPiecePanel({
   );
 }
 
+function getTransformFromObject(object: THREE.Object3D): PreviewTransform {
+  return {
+    position: [object.position.x, object.position.y, object.position.z],
+    rotation: [object.rotation.x, object.rotation.y, object.rotation.z],
+  };
+}
+
+function SelectedPieceTransformGizmo({
+  pieceId,
+  object,
+  onCommitTransform,
+}: {
+  pieceId: string;
+  object: THREE.Group | null;
+  onCommitTransform: (pieceId: string, transform: PreviewTransform) => void;
+}) {
+  const pendingTransformRef = useRef<PreviewTransform | null>(null);
+  const isDraggingRef = useRef(false);
+
+  const commitTransform = useCallback(() => {
+    if (!object) {
+      return;
+    }
+
+    const transform =
+      pendingTransformRef.current ?? getTransformFromObject(object);
+
+    onCommitTransform(pieceId, transform);
+
+    pendingTransformRef.current = null;
+    isDraggingRef.current = false;
+  }, [object, onCommitTransform, pieceId]);
+
+  useEffect(() => {
+    return () => {
+      // Covers the edge case where selection changes mid-drag.
+      if (isDraggingRef.current) {
+        commitTransform();
+      }
+    };
+  }, [commitTransform]);
+
+  if (!object) {
+    return null;
+  }
+
+  return (
+    <TransformControls
+      object={object}
+      mode="translate"
+      space="world"
+      size={0.75}
+      translationSnap={0.01}
+      onObjectChange={() => {
+        isDraggingRef.current = true;
+        pendingTransformRef.current = getTransformFromObject(object);
+      }}
+      onMouseUp={commitTransform}
+    />
+  );
+}
+
 function GarmentPreview({
   pieces,
   selectedPieceId,
   patternUnitsPerMillimetre,
+  onSelectPiece,
+  onUpdatePiecePreviewTransform,
 }: {
   pieces: PatternPiece[];
   selectedPieceId?: string | null;
   patternUnitsPerMillimetre: number;
+  onSelectPiece?: (pieceId: string) => void;
+  onUpdatePiecePreviewTransform: (
+    pieceId: string,
+    transform: PreviewTransform,
+  ) => void;
 }) {
+  const objectsByPieceIdRef = useRef(new Map<string, THREE.Group>());
+
+  const [selectedObject, setSelectedObject] = useState<THREE.Group | null>(
+    null,
+  );
+
+  const selectedPieceIdRef = useRef(selectedPieceId);
+
+  useEffect(() => {
+    selectedPieceIdRef.current = selectedPieceId;
+
+    setSelectedObject(
+      selectedPieceId
+        ? (objectsByPieceIdRef.current.get(selectedPieceId) ?? null)
+        : null,
+    );
+  }, [selectedPieceId]);
+
+  const registerObject = useCallback((pieceId: string, object: THREE.Group) => {
+    objectsByPieceIdRef.current.set(pieceId, object);
+
+    if (pieceId === selectedPieceIdRef.current) {
+      setSelectedObject(object);
+    }
+  }, []);
+
+  const unregisterObject = useCallback((pieceId: string) => {
+    const object = objectsByPieceIdRef.current.get(pieceId);
+
+    objectsByPieceIdRef.current.delete(pieceId);
+
+    setSelectedObject((currentObject) =>
+      currentObject === object ? null : currentObject,
+    );
+  }, []);
+
   const drawablePieces = pieces.filter((piece) => piece.points.length >= 3);
 
   return (
@@ -206,21 +388,35 @@ function GarmentPreview({
           isSelected={piece.id === selectedPieceId}
           transform={getPreviewTransform(piece, index)}
           patternUnitsPerMillimetre={patternUnitsPerMillimetre}
+          onSelectPiece={onSelectPiece}
+          onRegisterObject={registerObject}
+          onUnregisterObject={unregisterObject}
         />
       ))}
+
+      {selectedPieceId && (
+        <SelectedPieceTransformGizmo
+          pieceId={selectedPieceId}
+          object={selectedObject}
+          onCommitTransform={onUpdatePiecePreviewTransform}
+        />
+      )}
     </>
   );
 }
-
 export function ThreePreview({
   modelUrl,
   pieces,
   selectedPieceId,
   patternUnitsPerMillimetre = 1,
+  onSelectPiece,
+  onUpdatePiecePreviewTransform,
+  onClearSelection,
 }: ThreePreviewProps) {
   return (
     <Canvas
       shadows
+      onPointerMissed={() => onClearSelection?.()}
       camera={{
         position: [0, 1.3, 4],
         fov: 40,
@@ -242,16 +438,19 @@ export function ThreePreview({
 
         <gridHelper args={[10, 10]} />
 
-        <AvatarModel modelUrl={modelUrl} />
+        <AvatarModel onClearSelection={onClearSelection} modelUrl={modelUrl} />
 
         <GarmentPreview
           pieces={pieces}
           selectedPieceId={selectedPieceId}
           patternUnitsPerMillimetre={patternUnitsPerMillimetre}
+          onSelectPiece={onSelectPiece}
+          onUpdatePiecePreviewTransform={onUpdatePiecePreviewTransform}
         />
       </Suspense>
 
       <OrbitControls
+        makeDefault
         enablePan={false}
         enableDamping
         target={[0, 1, 0]}
