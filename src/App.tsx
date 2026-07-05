@@ -294,6 +294,7 @@ function App() {
           onSelectPiece={editor.selectPiece}
           onUpdatePiecePreviewTransform={editor.updatePiecePreviewTransform}
           onClearSelection={editor.clearSelection}
+          onUpdatePiecePreviewTransforms={editor.updatePiecePreviewTransforms}
         />
       </aside>
     </main>

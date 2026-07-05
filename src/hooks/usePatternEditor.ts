@@ -32,6 +32,7 @@ import type {
   PointPosition,
   Tool,
   PreviewTransform,
+  PiecePreviewTransformUpdate,
 } from "../types";
 
 type FocusedPoint = {
@@ -616,6 +617,85 @@ export function usePatternEditor() {
     [updatePieces],
   );
 
+  const flipPiecePreview = useCallback(
+    (pieceId: string) => {
+      updatePieces((currentPieces) => {
+        const selectedPiece = currentPieces.find(
+          (piece) => piece.id === pieceId,
+        );
+
+        if (!selectedPiece) {
+          return currentPieces;
+        }
+
+        const linkedPieceIds = new Set([
+          selectedPiece.id,
+          ...(selectedPiece.symmetry
+            ? currentPieces
+                .filter(
+                  (piece) =>
+                    piece.symmetry?.pairId === selectedPiece.symmetry?.pairId,
+                )
+                .map((piece) => piece.id)
+            : []),
+        ]);
+
+        return currentPieces.map((piece) => {
+          if (!linkedPieceIds.has(piece.id)) {
+            return piece;
+          }
+
+          const transform = piece.previewTransform ?? {
+            position: [0, 1.2, 0.36] as [number, number, number],
+            rotation: [0, 0, 0] as [number, number, number],
+            scale: [1, 1, 1] as [number, number, number],
+          };
+
+          const scale = transform.scale ?? [1, 1, 1];
+
+          return {
+            ...piece,
+            previewTransform: {
+              ...transform,
+              scale: [-scale[0], scale[1], scale[2]],
+            },
+          };
+        });
+      });
+    },
+    [updatePieces],
+  );
+
+  const updatePiecePreviewTransforms = useCallback(
+    (updates: PiecePreviewTransformUpdate[]) => {
+      const transformsByPieceId = new Map(
+        updates.map((update) => [update.pieceId, update.previewTransform]),
+      );
+
+      updatePieces((currentPieces) => {
+        let didChange = false;
+
+        const nextPieces = currentPieces.map((piece) => {
+          const previewTransform = transformsByPieceId.get(piece.id);
+
+          if (!previewTransform) {
+            return piece;
+          }
+
+          didChange = true;
+
+          return {
+            ...piece,
+            previewTransform,
+          };
+        });
+
+        return didChange ? nextPieces : currentPieces;
+      });
+    },
+    [updatePieces],
+  );
+
   return {
     activeTool,
     bendPatternSegment,
@@ -656,5 +736,7 @@ export function usePatternEditor() {
     updatePieceMetadata,
     updatePiecePosition,
     updatePiecePreviewTransform,
+    flipPiecePreview,
+    updatePiecePreviewTransforms,
   };
 }

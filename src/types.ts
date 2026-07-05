@@ -61,3 +61,8 @@ export type PieceMetadata = Partial<
     "name" | "lengthMm" | "cornerRadiusMm" | "quantity" | "notes"
   >
 >;
+
+export type PiecePreviewTransformUpdate = {
+  pieceId: string;
+  previewTransform: PreviewTransform;
+};

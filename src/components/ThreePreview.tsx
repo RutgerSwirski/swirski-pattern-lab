@@ -15,7 +15,12 @@ import {
 } from "react";
 import * as THREE from "three";
 
-import type { PatternPiece, PointPosition, PreviewTransform } from "../types";
+import type {
+  PatternPiece,
+  PiecePreviewTransformUpdate,
+  PointPosition,
+  PreviewTransform,
+} from "../types";
 
 type TransformMode = "translate" | "rotate";
 
@@ -31,6 +36,10 @@ type ThreePreviewProps = {
   onUpdatePiecePreviewTransform: (
     pieceId: string,
     transform: PreviewTransform,
+  ) => void;
+
+  onUpdatePiecePreviewTransforms: (
+    updates: PiecePreviewTransformUpdate[],
   ) => void;
 
   onClearSelection?: () => void;
@@ -72,20 +81,25 @@ const DEFAULT_PREVIEW_TRANSFORMS: readonly PreviewTransform[] = [
   },
 ] as const;
 
-function getPreviewTransform(piece: PatternPiece, index: number) {
-  if (piece.previewTransform) {
-    return piece.previewTransform;
-  }
-
+function getPreviewTransform(
+  piece: PatternPiece,
+  index: number,
+): PreviewTransform {
   const slot =
     DEFAULT_PREVIEW_TRANSFORMS[index % DEFAULT_PREVIEW_TRANSFORMS.length];
 
   return {
-    position: [...slot.position] as [number, number, number],
-    rotation: [...slot.rotation] as [number, number, number],
+    position:
+      piece.previewTransform?.position ??
+      ([...slot.position] as [number, number, number]),
+
+    rotation:
+      piece.previewTransform?.rotation ??
+      ([...slot.rotation] as [number, number, number]),
+
+    scale: piece.previewTransform?.scale ?? [1, 1, 1],
   };
 }
-
 function AvatarModel({
   modelUrl,
   onClearSelection,
@@ -453,6 +467,27 @@ function GarmentPreview({
     </>
   );
 }
+
+function getSymmetryLinkedPieces(
+  pieces: PatternPiece[],
+  selectedPiece: PatternPiece,
+) {
+  if (!selectedPiece.symmetry) {
+    return [selectedPiece];
+  }
+
+  const partnerId = selectedPiece.symmetry.pairId;
+
+  return pieces.filter((piece) => {
+    return (
+      piece.id === selectedPiece.id ||
+      piece.id === partnerId ||
+      piece.symmetry?.pairId === selectedPiece.id ||
+      piece.symmetry?.pairId === partnerId
+    );
+  });
+}
+
 export function ThreePreview({
   modelUrl,
   pieces,
@@ -461,22 +496,54 @@ export function ThreePreview({
   onSelectPiece,
   onUpdatePiecePreviewTransform,
   onClearSelection,
+  onUpdatePiecePreviewTransforms,
 }: ThreePreviewProps) {
   const [transformMode, setTransformMode] =
     useState<TransformMode>("translate");
 
-  const selectedPanelObjectRef = useRef<THREE.Group | null>(null);
 
   const [hasSelectedPanelObject, setHasSelectedPanelObject] = useState(false);
 
   const handleSelectedObjectChange = useCallback(
     (object: THREE.Group | null) => {
-      selectedPanelObjectRef.current = object;
       setHasSelectedPanelObject(object !== null);
     },
     [],
   );
   const selectedPiece = pieces.find((piece) => piece.id === selectedPieceId);
+
+  const handleFlipSelectedPiece = useCallback(() => {
+    if (!selectedPiece) {
+      return;
+    }
+
+    const drawablePieces = pieces.filter((piece) => piece.points.length >= 3);
+
+    const indexByPieceId = new Map(
+      drawablePieces.map((piece, index) => [piece.id, index]),
+    );
+
+    const linkedPieces = getSymmetryLinkedPieces(drawablePieces, selectedPiece);
+
+    const updates: PiecePreviewTransformUpdate[] = linkedPieces.map((piece) => {
+  const index = indexByPieceId.get(piece.id) ?? 0;
+  const transform = getPreviewTransform(piece, index);
+
+  return {
+    pieceId: piece.id,
+    previewTransform: {
+      ...transform,
+      scale: [
+        -(transform.scale?.[0] ?? 1),
+        transform.scale?.[1] ?? 1,
+        transform.scale?.[2] ?? 1,
+      ],
+    },
+  };
+});
+
+    onUpdatePiecePreviewTransforms(updates);
+  }, [onUpdatePiecePreviewTransforms, pieces, selectedPiece]);
 
   return (
     <div className="three-preview">
@@ -553,27 +620,7 @@ export function ThreePreview({
           >
             Rotate
           </button>
-          <button
-            type="button"
-            onClick={() => {
-              const object = selectedPanelObjectRef.current;
-
-              if (!object) {
-                return;
-              }
-
-              const currentTransform = getTransformFromObject(object);
-
-              onUpdatePiecePreviewTransform(selectedPiece.id, {
-                ...currentTransform,
-                scale: [
-                  -(currentTransform.scale?.[0] ?? 1),
-                  currentTransform.scale?.[1] ?? 1,
-                  currentTransform.scale?.[2] ?? 1,
-                ],
-              });
-            }}
-          >
+          <button type="button" onClick={handleFlipSelectedPiece}>
             Flip
           </button>
         </div>
