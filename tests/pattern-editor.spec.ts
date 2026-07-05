@@ -50,6 +50,58 @@ async function countGreenPixels(page: Page) {
   });
 }
 
+async function countGreenPixelsNear(
+  page: Page,
+  point: { x: number; y: number },
+  radius = 18,
+) {
+  return page.evaluate(
+    ({ samplePoint, sampleRadius }) => {
+      const canvases = Array.from(document.querySelectorAll("canvas"));
+      let count = 0;
+
+      canvases.forEach((canvas) => {
+        const context = canvas.getContext("2d");
+
+        if (!context) {
+          return;
+        }
+
+        const scaleX = canvas.width / canvas.clientWidth;
+        const scaleY = canvas.height / canvas.clientHeight;
+        const centerX = Math.round(samplePoint.x * scaleX);
+        const centerY = Math.round(samplePoint.y * scaleY);
+        const radiusX = Math.round(sampleRadius * scaleX);
+        const radiusY = Math.round(sampleRadius * scaleY);
+        const left = Math.max(0, centerX - radiusX);
+        const top = Math.max(0, centerY - radiusY);
+        const width = Math.min(canvas.width - left, radiusX * 2);
+        const height = Math.min(canvas.height - top, radiusY * 2);
+
+        if (width <= 0 || height <= 0) {
+          return;
+        }
+
+        const image = context.getImageData(left, top, width, height);
+
+        for (let index = 0; index < image.data.length; index += 4) {
+          const red = image.data[index];
+          const green = image.data[index + 1];
+          const blue = image.data[index + 2];
+          const alpha = image.data[index + 3];
+
+          if (alpha > 0 && red < 80 && green > 100 && blue < 140) {
+            count += 1;
+          }
+        }
+      });
+
+      return count;
+    },
+    { samplePoint: point, sampleRadius: radius },
+  );
+}
+
 async function storeCanvasSnapshot(page: Page, name: string) {
   await page.evaluate((snapshotName) => {
     const canvases = Array.from(document.querySelectorAll("canvas"));
@@ -191,4 +243,29 @@ test("double-clicking an edge shows bezier handles", async ({ page }) => {
 
   const afterHandles = await countGreenPixels(page);
   expect(afterHandles).toBeGreaterThan(beforeHandles + 20);
+});
+
+test("edge curve focus only shows handles for that edge", async ({ page }) => {
+  await openEditor(page);
+
+  const topLeft = patternPointToScreen({ x: -120, y: -160 });
+  const topEdge = patternPointToScreen({ x: 0, y: -160 });
+  const edgeHandle = patternPointToScreen({ x: -40, y: -160 });
+  const adjacentHandle = patternPointToScreen({
+    x: -126.6667,
+    y: -46.6667,
+  });
+
+  await page.getByRole("button", { name: "Curve" }).click();
+  await page.mouse.dblclick(topEdge.x, topEdge.y);
+  await page.waitForTimeout(200);
+
+  expect(await countGreenPixelsNear(page, edgeHandle)).toBeGreaterThan(10);
+  expect(await countGreenPixelsNear(page, adjacentHandle)).toBeLessThan(10);
+
+  await page.mouse.click(topLeft.x, topLeft.y);
+  await page.waitForTimeout(200);
+
+  expect(await countGreenPixelsNear(page, edgeHandle)).toBeGreaterThan(10);
+  expect(await countGreenPixelsNear(page, adjacentHandle)).toBeGreaterThan(10);
 });

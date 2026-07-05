@@ -11,6 +11,7 @@ import {
 } from "../lib/patternConfig";
 import type {
   Camera,
+  FocusedCurveHandle,
   PatternPiece,
   PatternPoint,
   PieceTool,
@@ -32,7 +33,7 @@ type PatternCanvasProps = {
   lastPointerPosition: PointPosition | null;
   pieceTool: PieceTool;
   pieces: PatternPiece[];
-  focusedPointIds: string[];
+  focusedCurveHandles: FocusedCurveHandle[];
   selectedPieceId: string | null;
   viewport: Viewport;
   makeId: (prefix: string) => string;
@@ -42,7 +43,11 @@ type PatternCanvasProps = {
   onClearSelection: () => void;
   onCommitHistoryTransaction: () => void;
   onFocusPatternPoint: (pieceId: string, pointId: string) => void;
-  onFocusPatternPoints: (pieceId: string, pointIds: string[]) => void;
+  onFocusPatternSegment: (
+    pieceId: string,
+    startPointId: string,
+    endPointId: string,
+  ) => void;
   onInsertPatternPoint: (
     pieceId: string,
     afterPointId: string,
@@ -86,7 +91,7 @@ export function PatternCanvas({
   lastPointerPosition,
   pieceTool,
   pieces,
-  focusedPointIds,
+  focusedCurveHandles,
   selectedPieceId,
   viewport,
   makeId,
@@ -96,7 +101,7 @@ export function PatternCanvas({
   onClearSelection,
   onCommitHistoryTransaction,
   onFocusPatternPoint,
-  onFocusPatternPoints,
+  onFocusPatternSegment,
   onInsertPatternPoint,
   onSelectPiece,
   onSelectPieceTool,
@@ -264,7 +269,7 @@ export function PatternCanvas({
               key={piece.id}
               activeTool={activeTool}
               camera={camera}
-              focusedPointIds={focusedPointIds}
+              focusedCurveHandles={focusedCurveHandles}
               isSelected={piece.id === selectedPieceId}
               pieceTool={pieceTool}
               piece={piece}
@@ -284,7 +289,7 @@ export function PatternCanvas({
                 });
               }}
               onFocusPatternPoint={onFocusPatternPoint}
-              onFocusPatternPoints={onFocusPatternPoints}
+              onFocusPatternSegment={onFocusPatternSegment}
               onInsertPatternPoint={onInsertPatternPoint}
               onSelectPiece={onSelectPiece}
               onSelectPieceTool={onSelectPieceTool}

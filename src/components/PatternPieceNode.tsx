@@ -10,7 +10,10 @@ import {
 import { MM_TO_PX } from "../lib/patternConfig";
 import type {
   Camera,
+  CurveHandle,
+  FocusedCurveHandle,
   PatternPiece,
+  PatternPoint,
   PieceTool,
   PointPosition,
   Tool,
@@ -20,7 +23,7 @@ import { PatternPieceEdges } from "./PatternPieceEdges";
 type PatternPieceNodeProps = {
   activeTool: Tool;
   camera: Camera;
-  focusedPointIds: string[];
+  focusedCurveHandles: FocusedCurveHandle[];
   isSelected: boolean;
   pieceTool: PieceTool;
   piece: PatternPiece;
@@ -35,7 +38,11 @@ type PatternPieceNodeProps = {
   onBeginHistoryTransaction: () => void;
   onCommitHistoryTransaction: () => void;
   onFocusPatternPoint: (pieceId: string, pointId: string) => void;
-  onFocusPatternPoints: (pieceId: string, pointIds: string[]) => void;
+  onFocusPatternSegment: (
+    pieceId: string,
+    startPointId: string,
+    endPointId: string,
+  ) => void;
   onInsertPatternPoint: (
     pieceId: string,
     afterPointId: string,
@@ -69,7 +76,7 @@ type PatternPieceNodeProps = {
 export function PatternPieceNode({
   activeTool,
   camera,
-  focusedPointIds,
+  focusedCurveHandles,
   isSelected,
   pieceTool,
   piece,
@@ -78,7 +85,7 @@ export function PatternPieceNode({
   onBeginHistoryTransaction,
   onCommitHistoryTransaction,
   onFocusPatternPoint,
-  onFocusPatternPoints,
+  onFocusPatternSegment,
   onInsertPatternPoint,
   onSelectPiece,
   onSelectPieceTool,
@@ -146,6 +153,77 @@ export function PatternPieceNode({
     activeTool === "select" && isSelected && pieceTool === "move";
   const canEditCurves =
     activeTool === "select" && isSelected && pieceTool === "curve";
+  const focusedHandleKeys = new Set(
+    focusedCurveHandles.map(
+      (focusedHandle) =>
+        `${focusedHandle.pointId}:${focusedHandle.handle}` as const,
+    ),
+  );
+
+  function hasFocusedHandle(pointId: string, handle: CurveHandle) {
+    return focusedHandleKeys.has(`${pointId}:${handle}`);
+  }
+
+  function renderCurveHandle(
+    point: PatternPoint,
+    handle: CurveHandle,
+    position: PointPosition,
+  ) {
+    return (
+      <Circle
+        key={`${point.id}-${handle}`}
+        x={position.x}
+        y={position.y}
+        radius={4 / camera.scale}
+        fill="#ffffff"
+        stroke="#059669"
+        strokeWidth={1.25 / camera.scale}
+        draggable={canEditCurves}
+        onMouseDown={(event) => {
+          event.cancelBubble = true;
+
+          if (canEditCurves) {
+            onBeginHistoryTransaction();
+            commitHistoryTransactionOnPointerRelease();
+          }
+        }}
+        onTouchStart={(event) => {
+          event.cancelBubble = true;
+
+          if (canEditCurves) {
+            onBeginHistoryTransaction();
+            commitHistoryTransactionOnPointerRelease();
+          }
+        }}
+        onMouseUp={(event) => {
+          event.cancelBubble = true;
+
+          if (canEditCurves) {
+            commitHistoryTransactionAfterDragEnd();
+          }
+        }}
+        onTouchEnd={(event) => {
+          event.cancelBubble = true;
+
+          if (canEditCurves) {
+            commitHistoryTransactionAfterDragEnd();
+          }
+        }}
+        onDragStart={(event) => {
+          event.cancelBubble = true;
+          onBeginHistoryTransaction();
+        }}
+        onDragMove={(event) => {
+          event.cancelBubble = true;
+          onUpdateCurveHandle(piece.id, point.id, handle, event.target.position());
+        }}
+        onDragEnd={(event) => {
+          event.cancelBubble = true;
+          onCommitHistoryTransaction();
+        }}
+      />
+    );
+  }
 
   return (
     <Group
@@ -212,7 +290,7 @@ export function PatternPieceNode({
           screenToPiecePoint={screenToPiecePoint}
           onBeginHistoryTransaction={onBeginHistoryTransaction}
           onCommitHistoryTransaction={onCommitHistoryTransaction}
-          onFocusPatternPoints={onFocusPatternPoints}
+          onFocusPatternSegment={onFocusPatternSegment}
           onInsertPatternPoint={onInsertPatternPoint}
           onOpenBezierContextMenu={onOpenBezierContextMenu}
           onSelectPieceTool={onSelectPieceTool}
@@ -309,6 +387,20 @@ export function PatternPieceNode({
               onSelectPieceTool("curve");
               onFocusPatternPoint(piece.id, point.id);
             }}
+            onClick={(event) => {
+              event.cancelBubble = true;
+
+              if (pieceTool === "curve") {
+                onFocusPatternPoint(piece.id, point.id);
+              }
+            }}
+            onTap={(event) => {
+              event.cancelBubble = true;
+
+              if (pieceTool === "curve") {
+                onFocusPatternPoint(piece.id, point.id);
+              }
+            }}
             onDragStart={(event) => {
               event.cancelBubble = true;
               onBeginHistoryTransaction();
@@ -339,144 +431,51 @@ export function PatternPieceNode({
       {isSelected &&
         pieceTool === "curve" &&
         piece.points.map((point) => {
-          if (
-            !focusedPointIds.includes(point.id) ||
-            !point.curveIn ||
-            !point.curveOut
-          ) {
+          const showCurveIn = Boolean(
+            point.curveIn && hasFocusedHandle(point.id, "curveIn"),
+          );
+          const showCurveOut = Boolean(
+            point.curveOut && hasFocusedHandle(point.id, "curveOut"),
+          );
+
+          if (!showCurveIn && !showCurveOut) {
             return null;
           }
 
           return (
             <Group key={`curve-handles-${point.id}`}>
-              <Line
-                points={[
-                  point.curveIn.x,
-                  point.curveIn.y,
-                  point.x,
-                  point.y,
-                  point.curveOut.x,
-                  point.curveOut.y,
-                ]}
-                stroke="#059669"
-                strokeWidth={1 / camera.scale}
-                dash={[5 / camera.scale, 5 / camera.scale]}
-                listening={false}
-              />
+              {showCurveIn && point.curveIn && (
+                <>
+                  <Line
+                    points={[point.curveIn.x, point.curveIn.y, point.x, point.y]}
+                    stroke="#059669"
+                    strokeWidth={1 / camera.scale}
+                    dash={[5 / camera.scale, 5 / camera.scale]}
+                    listening={false}
+                  />
 
-              <Circle
-                x={point.curveIn.x}
-                y={point.curveIn.y}
-                radius={4 / camera.scale}
-                fill="#ffffff"
-                stroke="#059669"
-                strokeWidth={1.25 / camera.scale}
-                draggable={canEditCurves}
-                onMouseDown={(event) => {
-                  event.cancelBubble = true;
+                  {renderCurveHandle(point, "curveIn", point.curveIn)}
+                </>
+              )}
 
-                  if (canEditCurves) {
-                    onBeginHistoryTransaction();
-                    commitHistoryTransactionOnPointerRelease();
-                  }
-                }}
-                onTouchStart={(event) => {
-                  event.cancelBubble = true;
+              {showCurveOut && point.curveOut && (
+                <>
+                  <Line
+                    points={[
+                      point.x,
+                      point.y,
+                      point.curveOut.x,
+                      point.curveOut.y,
+                    ]}
+                    stroke="#059669"
+                    strokeWidth={1 / camera.scale}
+                    dash={[5 / camera.scale, 5 / camera.scale]}
+                    listening={false}
+                  />
 
-                  if (canEditCurves) {
-                    onBeginHistoryTransaction();
-                    commitHistoryTransactionOnPointerRelease();
-                  }
-                }}
-                onMouseUp={(event) => {
-                  event.cancelBubble = true;
-
-                  if (canEditCurves) {
-                    commitHistoryTransactionAfterDragEnd();
-                  }
-                }}
-                onTouchEnd={(event) => {
-                  event.cancelBubble = true;
-
-                  if (canEditCurves) {
-                    commitHistoryTransactionAfterDragEnd();
-                  }
-                }}
-                onDragStart={(event) => {
-                  event.cancelBubble = true;
-                  onBeginHistoryTransaction();
-                }}
-                onDragMove={(event) => {
-                  event.cancelBubble = true;
-                  onUpdateCurveHandle(
-                    piece.id,
-                    point.id,
-                    "curveIn",
-                    event.target.position(),
-                  );
-                }}
-                onDragEnd={(event) => {
-                  event.cancelBubble = true;
-                  onCommitHistoryTransaction();
-                }}
-              />
-
-              <Circle
-                x={point.curveOut.x}
-                y={point.curveOut.y}
-                radius={4 / camera.scale}
-                fill="#ffffff"
-                stroke="#059669"
-                strokeWidth={1.25 / camera.scale}
-                draggable={canEditCurves}
-                onMouseDown={(event) => {
-                  event.cancelBubble = true;
-
-                  if (canEditCurves) {
-                    onBeginHistoryTransaction();
-                    commitHistoryTransactionOnPointerRelease();
-                  }
-                }}
-                onTouchStart={(event) => {
-                  event.cancelBubble = true;
-
-                  if (canEditCurves) {
-                    onBeginHistoryTransaction();
-                    commitHistoryTransactionOnPointerRelease();
-                  }
-                }}
-                onMouseUp={(event) => {
-                  event.cancelBubble = true;
-
-                  if (canEditCurves) {
-                    commitHistoryTransactionAfterDragEnd();
-                  }
-                }}
-                onTouchEnd={(event) => {
-                  event.cancelBubble = true;
-
-                  if (canEditCurves) {
-                    commitHistoryTransactionAfterDragEnd();
-                  }
-                }}
-                onDragStart={(event) => {
-                  event.cancelBubble = true;
-                  onBeginHistoryTransaction();
-                }}
-                onDragMove={(event) => {
-                  event.cancelBubble = true;
-                  onUpdateCurveHandle(
-                    piece.id,
-                    point.id,
-                    "curveOut",
-                    event.target.position(),
-                  );
-                }}
-                onDragEnd={(event) => {
-                  event.cancelBubble = true;
-                  onCommitHistoryTransaction();
-                }}
-              />
+                  {renderCurveHandle(point, "curveOut", point.curveOut)}
+                </>
+              )}
 
               <Circle
                 x={point.x}

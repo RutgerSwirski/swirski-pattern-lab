@@ -40,7 +40,11 @@ type PatternPieceEdgesProps = {
   ) => PointPosition;
   onBeginHistoryTransaction: () => void;
   onCommitHistoryTransaction: () => void;
-  onFocusPatternPoints: (pieceId: string, pointIds: string[]) => void;
+  onFocusPatternSegment: (
+    pieceId: string,
+    startPointId: string,
+    endPointId: string,
+  ) => void;
   onInsertPatternPoint: (
     pieceId: string,
     afterPointId: string,
@@ -69,7 +73,7 @@ export function PatternPieceEdges({
   screenToPiecePoint,
   onBeginHistoryTransaction,
   onCommitHistoryTransaction,
-  onFocusPatternPoints,
+  onFocusPatternSegment,
   onInsertPatternPoint,
   onOpenBezierContextMenu,
   onSelectPieceTool,
@@ -145,7 +149,7 @@ export function PatternPieceEdges({
               clickTimer.current = null;
             }
 
-            onFocusPatternPoints(piece.id, [edge.start.id, edge.end.id]);
+            onFocusPatternSegment(piece.id, edge.start.id, edge.end.id);
             return;
           }
 
@@ -210,7 +214,7 @@ export function PatternPieceEdges({
           }
 
           onSelectPieceTool("curve");
-          onFocusPatternPoints(piece.id, [edge.start.id, edge.end.id]);
+          onFocusPatternSegment(piece.id, edge.start.id, edge.end.id);
         }
 
         function handleEdgeHover(

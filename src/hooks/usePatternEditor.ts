@@ -20,6 +20,7 @@ import {
 } from "../lib/patternOperations";
 import { createSymmetricPiecePair } from "../lib/symmetry";
 import type {
+  FocusedCurveHandle,
   PatternPiece,
   PatternPoint,
   PieceTool,
@@ -29,6 +30,8 @@ import type {
 } from "../types";
 
 type FocusedPoint = {
+  canDeletePoints: boolean;
+  curveHandles: FocusedCurveHandle[];
   pieceId: string;
   pointIds: string[];
 };
@@ -186,7 +189,38 @@ export function usePatternEditor() {
 
   function focusPatternPoints(pieceId: string, pointIds: string[]) {
     setSelectedPieceId(pieceId);
-    setFocusedPoint({ pieceId, pointIds });
+    setFocusedPoint({
+      canDeletePoints: true,
+      curveHandles: pointIds.flatMap((pointId) => [
+        { pointId, handle: "curveIn" },
+        { pointId, handle: "curveOut" },
+      ]),
+      pieceId,
+      pointIds,
+    });
+
+    updatePieces((currentPieces) =>
+      focusPatternPointsInPieces(currentPieces, pieceId, pointIds),
+    );
+  }
+
+  function focusPatternSegment(
+    pieceId: string,
+    startPointId: string,
+    endPointId: string,
+  ) {
+    const pointIds = [startPointId, endPointId];
+
+    setSelectedPieceId(pieceId);
+    setFocusedPoint({
+      canDeletePoints: false,
+      curveHandles: [
+        { pointId: startPointId, handle: "curveOut" },
+        { pointId: endPointId, handle: "curveIn" },
+      ],
+      pieceId,
+      pointIds,
+    });
 
     updatePieces((currentPieces) =>
       focusPatternPointsInPieces(currentPieces, pieceId, pointIds),
@@ -358,7 +392,7 @@ export function usePatternEditor() {
         target instanceof HTMLInputElement ||
         target instanceof HTMLTextAreaElement;
 
-      if (isTyping || !focusedPoint) {
+      if (isTyping || !focusedPoint?.canDeletePoints) {
         return;
       }
 
@@ -437,6 +471,7 @@ export function usePatternEditor() {
     finishDraftPiece,
     focusPatternPoint,
     focusPatternPoints,
+    focusPatternSegment,
     insertPatternPoint,
     makeId,
     redo,

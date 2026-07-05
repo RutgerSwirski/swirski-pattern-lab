@@ -9,6 +9,13 @@ export type PatternPoint = PointPosition & {
   curveOut?: PointPosition;
 };
 
+export type CurveHandle = "curveIn" | "curveOut";
+
+export type FocusedCurveHandle = {
+  pointId: string;
+  handle: CurveHandle;
+};
+
 export type PatternPiece = {
   id: string;
   name: string;

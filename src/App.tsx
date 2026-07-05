@@ -93,9 +93,9 @@ function App() {
         makeId={editor.makeId}
         pieceTool={editor.pieceTool}
         pieces={editor.pieces}
-        focusedPointIds={
+        focusedCurveHandles={
           editor.focusedPoint?.pieceId === editor.selectedPieceId
-            ? editor.focusedPoint.pointIds
+            ? editor.focusedPoint.curveHandles
             : []
         }
         selectedPieceId={editor.selectedPieceId}
@@ -108,7 +108,7 @@ function App() {
         onClearBezierSegment={editor.clearBezierSegment}
         onCommitHistoryTransaction={editor.commitHistoryTransaction}
         onFocusPatternPoint={editor.focusPatternPoint}
-        onFocusPatternPoints={editor.focusPatternPoints}
+        onFocusPatternSegment={editor.focusPatternSegment}
         onInsertPatternPoint={editor.insertPatternPoint}
         onSelectPiece={editor.selectPiece}
         onSelectPieceTool={editor.setPieceTool}
