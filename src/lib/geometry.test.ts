@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getClosestPointOnSegment } from "./geometry";
+import { getClosestPointOnSegment, getGridSnappedTranslation } from "./geometry";
 
 function expectPointOnSegmentLine(
   point: { x: number; y: number },
@@ -35,5 +35,29 @@ describe("geometry", () => {
       start,
     );
     expect(getClosestPointOnSegment({ x: 120, y: 10 }, start, end)).toEqual(end);
+  });
+
+  it("returns incremental deltas for grid-snapped translations", () => {
+    const firstMove = getGridSnappedTranslation(
+      { x: -120, y: -160 },
+      { x: 4, y: 6 },
+      { x: 0, y: 0 },
+    );
+
+    expect(firstMove).toEqual({
+      delta: { x: 0, y: 10 },
+      offset: { x: 0, y: 10 },
+    });
+
+    const secondMove = getGridSnappedTranslation(
+      { x: -120, y: -160 },
+      { x: 14, y: 17 },
+      firstMove.offset,
+    );
+
+    expect(secondMove).toEqual({
+      delta: { x: 10, y: 10 },
+      offset: { x: 10, y: 20 },
+    });
   });
 });

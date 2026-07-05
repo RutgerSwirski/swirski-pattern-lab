@@ -7,6 +7,25 @@ export function snapToGrid(value: number) {
   return Math.round(value / GRID_SIZE_MM) * GRID_SIZE_MM;
 }
 
+export function getGridSnappedTranslation(
+  startPoint: PointPosition,
+  rawOffset: PointPosition,
+  currentSnappedOffset: PointPosition,
+) {
+  const snappedOffset = {
+    x: snapToGrid(startPoint.x + rawOffset.x) - startPoint.x,
+    y: snapToGrid(startPoint.y + rawOffset.y) - startPoint.y,
+  };
+
+  return {
+    delta: {
+      x: snappedOffset.x - currentSnappedOffset.x,
+      y: snappedOffset.y - currentSnappedOffset.y,
+    },
+    offset: snappedOffset,
+  };
+}
+
 export function getNumericInputValue(value: string, minimum: number) {
   const numberValue = Number(value);
 

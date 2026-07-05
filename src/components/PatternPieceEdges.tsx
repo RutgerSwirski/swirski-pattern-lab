@@ -4,6 +4,7 @@ import { Circle, Group, Rect, Shape, Text } from "react-konva";
 
 import {
   getClosestPointOnPatternSegment,
+  getGridSnappedTranslation,
   getLineLength,
   getSegmentLabelGeometry,
   getSegmentLength,
@@ -87,7 +88,9 @@ export function PatternPieceEdges({
   const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
   const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const edgeDragMoved = useRef(false);
-  const edgeDragPointer = useRef<PointPosition | null>(null);
+  const edgeDragStartPointer = useRef<PointPosition | null>(null);
+  const edgeDragStartPoint = useRef<PointPosition | null>(null);
+  const edgeDragSnappedOffset = useRef<PointPosition>({ x: 0, y: 0 });
   const edgePointerButton = useRef<number | null>(null);
   const suppressEdgeClickUntil = useRef(0);
   const edges = getPatternEdges(piece);
@@ -223,7 +226,7 @@ export function PatternPieceEdges({
         ) {
           setHoveredEdgeId(edge.id);
 
-          if (!canAddPoint || edgeDragPointer.current) {
+          if (!canAddPoint || edgeDragStartPointer.current) {
             setHoverPoint((currentPoint) =>
               currentPoint?.edgeId === edge.id ? null : currentPoint,
             );
@@ -247,14 +250,27 @@ export function PatternPieceEdges({
 
           const pointer = event.target.getStage()?.getPointerPosition();
 
-          if (!pointer || !edgeDragPointer.current) {
+          if (
+            !pointer ||
+            !edgeDragStartPointer.current ||
+            !edgeDragStartPoint.current
+          ) {
             event.target.position({ x: 0, y: 0 });
             return;
           }
 
           const localPointer = screenToPiecePoint(piece, pointer);
-          const deltaX = localPointer.x - edgeDragPointer.current.x;
-          const deltaY = localPointer.y - edgeDragPointer.current.y;
+          const rawOffset = {
+            x: localPointer.x - edgeDragStartPointer.current.x,
+            y: localPointer.y - edgeDragStartPointer.current.y,
+          };
+          const { delta, offset } = getGridSnappedTranslation(
+            edgeDragStartPoint.current,
+            rawOffset,
+            edgeDragSnappedOffset.current,
+          );
+          const deltaX = delta.x;
+          const deltaY = delta.y;
 
           if (deltaX === 0 && deltaY === 0) {
             event.target.position({ x: 0, y: 0 });
@@ -262,7 +278,7 @@ export function PatternPieceEdges({
           }
 
           edgeDragMoved.current = true;
-          edgeDragPointer.current = localPointer;
+          edgeDragSnappedOffset.current = offset;
           onTranslatePatternSegment(
             piece.id,
             edge.start.id,
@@ -279,7 +295,9 @@ export function PatternPieceEdges({
             ? Date.now() + 250
             : 0;
           edgeDragMoved.current = false;
-          edgeDragPointer.current = null;
+          edgeDragStartPointer.current = null;
+          edgeDragStartPoint.current = null;
+          edgeDragSnappedOffset.current = { x: 0, y: 0 };
           edgePointerButton.current = null;
           event.target.position({ x: 0, y: 0 });
           onCommitHistoryTransaction();
@@ -347,9 +365,11 @@ export function PatternPieceEdges({
                 setHoveredEdgeId(null);
 
                 const pointer = event.target.getStage()?.getPointerPosition();
-                edgeDragPointer.current = pointer
+                edgeDragStartPointer.current = pointer
                   ? screenToPiecePoint(piece, pointer)
                   : null;
+                edgeDragStartPoint.current = edge.start;
+                edgeDragSnappedOffset.current = { x: 0, y: 0 };
                 event.target.position({ x: 0, y: 0 });
               }}
               onDragMove={handleEdgeDragMove}
