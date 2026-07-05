@@ -84,6 +84,7 @@ export function PatternPieceEdges({
     point: PointPosition;
     progress: number;
   } | null>(null);
+  const [hoveredEdgeId, setHoveredEdgeId] = useState<string | null>(null);
   const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const edgeDragMoved = useRef(false);
   const edgeDragPointer = useRef<PointPosition | null>(null);
@@ -220,6 +221,8 @@ export function PatternPieceEdges({
         function handleEdgeHover(
           event: Konva.KonvaEventObject<MouseEvent | TouchEvent>,
         ) {
+          setHoveredEdgeId(edge.id);
+
           if (!canAddPoint || edgeDragPointer.current) {
             setHoverPoint((currentPoint) =>
               currentPoint?.edgeId === edge.id ? null : currentPoint,
@@ -284,72 +287,89 @@ export function PatternPieceEdges({
 
         function handleEdgeMouseLeave() {
           edgePointerButton.current = null;
+          setHoveredEdgeId((currentEdgeId) =>
+            currentEdgeId === edge.id ? null : currentEdgeId,
+          );
           setHoverPoint((currentPoint) =>
             currentPoint?.edgeId === edge.id ? null : currentPoint,
           );
         }
 
         return (
-          <Shape
-            key={`insert-hit-${edge.id}`}
-            sceneFunc={(context, shape) => {
-              drawEdgeHitPath(context, shape, edge);
-            }}
-            hitFunc={(context, shape) => {
-              drawEdgeHitPath(context, shape, edge);
-            }}
-            stroke="rgba(37, 99, 235, 0.01)"
-            strokeWidth={10 / camera.scale}
-            hitStrokeWidth={14 / camera.scale}
-            draggable={canMoveSegment}
-            onMouseDown={(event) => {
-              edgePointerButton.current = event.evt.button;
+          <Group key={`edge-hit-${edge.id}`}>
+            {hoveredEdgeId === edge.id && (
+              <Shape
+                sceneFunc={(context, shape) => {
+                  drawEdgeHitPath(context, shape, edge);
+                }}
+                stroke="rgba(37, 99, 235, 0.42)"
+                strokeWidth={4 / camera.scale}
+                listening={false}
+              />
+            )}
 
-              if (event.evt.button !== 0) {
+            <Shape
+              sceneFunc={(context, shape) => {
+                drawEdgeHitPath(context, shape, edge);
+              }}
+              hitFunc={(context, shape) => {
+                drawEdgeHitPath(context, shape, edge);
+              }}
+              stroke="rgba(37, 99, 235, 0.01)"
+              strokeWidth={10 / camera.scale}
+              hitStrokeWidth={14 / camera.scale}
+              draggable={canMoveSegment}
+              onMouseDown={(event) => {
+                edgePointerButton.current = event.evt.button;
+
+                if (event.evt.button !== 0) {
+                  event.evt.preventDefault();
+                  event.cancelBubble = true;
+                }
+              }}
+              onTouchStart={() => {
+                edgePointerButton.current = 0;
+              }}
+              onClick={handleEdgeClick}
+              onTap={handleEdgeClick}
+              onDblClick={handleEdgeDoubleClick}
+              onDblTap={handleEdgeDoubleClick}
+              onMouseEnter={() => setHoveredEdgeId(edge.id)}
+              onMouseMove={handleEdgeHover}
+              onTouchMove={handleEdgeHover}
+              onMouseLeave={handleEdgeMouseLeave}
+              onDragStart={(event) => {
+                event.cancelBubble = true;
+                onBeginHistoryTransaction();
+                edgeDragMoved.current = false;
+                suppressEdgeClickUntil.current = 0;
+                setHoverPoint(null);
+                setHoveredEdgeId(null);
+
+                const pointer = event.target.getStage()?.getPointerPosition();
+                edgeDragPointer.current = pointer
+                  ? screenToPiecePoint(piece, pointer)
+                  : null;
+                event.target.position({ x: 0, y: 0 });
+              }}
+              onDragMove={handleEdgeDragMove}
+              onDragEnd={handleEdgeDragEnd}
+              onContextMenu={(event) => {
+                edgePointerButton.current = 2;
                 event.evt.preventDefault();
                 event.cancelBubble = true;
-              }
-            }}
-            onTouchStart={() => {
-              edgePointerButton.current = 0;
-            }}
-            onClick={handleEdgeClick}
-            onTap={handleEdgeClick}
-            onDblClick={handleEdgeDoubleClick}
-            onDblTap={handleEdgeDoubleClick}
-            onMouseMove={handleEdgeHover}
-            onTouchMove={handleEdgeHover}
-            onMouseLeave={handleEdgeMouseLeave}
-            onDragStart={(event) => {
-              event.cancelBubble = true;
-              onBeginHistoryTransaction();
-              edgeDragMoved.current = false;
-              suppressEdgeClickUntil.current = 0;
-              setHoverPoint(null);
 
-              const pointer = event.target.getStage()?.getPointerPosition();
-              edgeDragPointer.current = pointer
-                ? screenToPiecePoint(piece, pointer)
-                : null;
-              event.target.position({ x: 0, y: 0 });
-            }}
-            onDragMove={handleEdgeDragMove}
-            onDragEnd={handleEdgeDragEnd}
-            onContextMenu={(event) => {
-              edgePointerButton.current = 2;
-              event.evt.preventDefault();
-              event.cancelBubble = true;
+                if (clickTimer.current) {
+                  clearTimeout(clickTimer.current);
+                  clickTimer.current = null;
+                }
 
-              if (clickTimer.current) {
-                clearTimeout(clickTimer.current);
-                clickTimer.current = null;
-              }
-
-              if (edge.isBezier) {
-                onOpenBezierContextMenu(event, edge.start.id);
-              }
-            }}
-          />
+                if (edge.isBezier) {
+                  onOpenBezierContextMenu(event, edge.start.id);
+                }
+              }}
+            />
+          </Group>
         );
       })}
 
