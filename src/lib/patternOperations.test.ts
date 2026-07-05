@@ -3,8 +3,10 @@ import { describe, expect, it } from "vitest";
 import type { PatternPiece, PointPosition } from "../types";
 import { getCubicPoint } from "./geometry";
 import {
+  bendPatternSegmentInPieces,
   deletePatternPieceInPieces,
   duplicatePatternPiece,
+  focusPatternSegmentInPieces,
   insertPatternPointInPieces,
   translatePatternSegmentInPieces,
   updatePatternPointInPieces,
@@ -89,6 +91,70 @@ describe("pattern operations", () => {
     expect(getPoint(updatedPiece, "b")).toMatchObject({ x: 110, y: 80 });
     expect(getPoint(updatedPiece, "b").curveIn).toEqual({ x: 110, y: 20 });
     expect(getPoint(updatedPiece, "c")).toMatchObject({ x: 0, y: 120 });
+  });
+
+  it("bends an edge so its curve midpoint follows the mouse", () => {
+    const bendPoint = { x: 50, y: 30 };
+    const [updatedPiece] = bendPatternSegmentInPieces(
+      [
+        makePiece({
+          points: [
+            { id: "a", x: 0, y: 0 },
+            { id: "b", x: 100, y: 0 },
+            { id: "c", x: 0, y: 100 },
+          ],
+        }),
+      ],
+      "piece",
+      "a",
+      "b",
+      bendPoint,
+    );
+    const start = getPoint(updatedPiece, "a");
+    const end = getPoint(updatedPiece, "b");
+
+    expect(start.curveOut).toBeDefined();
+    expect(end.curveIn).toBeDefined();
+    expectPointClose(
+      getCubicPoint(start, start.curveOut ?? start, end.curveIn ?? end, end, 0.5),
+      bendPoint,
+    );
+    expect(getPoint(updatedPiece, "c")).toMatchObject({ x: 0, y: 100 });
+  });
+
+  it("focuses only the handles that belong to a selected edge", () => {
+    const [updatedPiece] = focusPatternSegmentInPieces(
+      [
+        makePiece({
+          points: [
+            { id: "a", x: 0, y: 0 },
+            { id: "b", x: 100, y: 0 },
+            { id: "c", x: 100, y: 100 },
+          ],
+        }),
+      ],
+      "piece",
+      "a",
+      "b",
+    );
+
+    const start = getPoint(updatedPiece, "a");
+    const end = getPoint(updatedPiece, "b");
+
+    expect(start.curveOut).toBeDefined();
+    expect(end.curveIn).toBeDefined();
+    expectPointClose(start.curveOut!, {
+      x: 100 / 3,
+      y: 0,
+    });
+    expectPointClose(end.curveIn!, {
+      x: 200 / 3,
+      y: 0,
+    });
+    expect(start.curveIn).toBeUndefined();
+    expect(end.curveOut).toBeUndefined();
+    expect(getPoint(updatedPiece, "c").curveIn).toBeUndefined();
+    expect(getPoint(updatedPiece, "c").curveOut).toBeUndefined();
   });
 
   it("inserts a point into a straight edge", () => {

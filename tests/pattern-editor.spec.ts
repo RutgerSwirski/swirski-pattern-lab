@@ -271,6 +271,26 @@ test("double-clicking an edge shows bezier handles", async ({ page }) => {
   expect(afterHandles).toBeGreaterThan(beforeHandles + 20);
 });
 
+test("dragging an edge in curve mode bends it directly", async ({ page }) => {
+  await openEditor(page);
+
+  const topEdge = patternPointToScreen({ x: 0, y: -160 });
+
+  await page.getByRole("button", { name: "Curve" }).click();
+  await storeCanvasSnapshot(page, "before-direct-bend");
+
+  await page.mouse.move(topEdge.x, topEdge.y);
+  await page.mouse.down();
+  await page.mouse.move(topEdge.x, topEdge.y + 80, { steps: 12 });
+  await page.mouse.up();
+  await page.waitForTimeout(200);
+
+  expect(await countCanvasDiff(page, "before-direct-bend")).toBeGreaterThan(
+    500,
+  );
+  expect(await countGreenPixels(page)).toBeGreaterThan(20);
+});
+
 test("single-clicking a point shows both point bezier handles", async ({
   page,
 }) => {

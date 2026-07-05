@@ -30,6 +30,12 @@ type PatternPieceNodeProps = {
     event: Konva.KonvaEventObject<PointerEvent>,
     startPointId: string,
   ) => void;
+  onBendPatternSegment: (
+    pieceId: string,
+    startPointId: string,
+    endPointId: string,
+    bendPoint: PointPosition,
+  ) => void;
   onBeginHistoryTransaction: () => void;
   onCommitHistoryTransaction: () => void;
   onFocusPatternPoint: (pieceId: string, pointId: string) => void;
@@ -77,6 +83,7 @@ export function PatternPieceNode({
   piece,
   screenToPiecePoint,
   onOpenBezierContextMenu,
+  onBendPatternSegment,
   onBeginHistoryTransaction,
   onCommitHistoryTransaction,
   onFocusPatternPoint,
@@ -158,6 +165,7 @@ export function PatternPieceNode({
           piece={piece}
           screenToPiecePoint={screenToPiecePoint}
           onBeginHistoryTransaction={onBeginHistoryTransaction}
+          onBendPatternSegment={onBendPatternSegment}
           onCommitHistoryTransaction={onCommitHistoryTransaction}
           onFocusPatternSegment={onFocusPatternSegment}
           onInsertPatternPoint={onInsertPatternPoint}

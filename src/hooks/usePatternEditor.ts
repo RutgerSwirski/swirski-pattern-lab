@@ -8,11 +8,13 @@ import {
   type HistoryState,
 } from "../lib/history";
 import {
+  bendPatternSegmentInPieces,
   clearBezierSegmentInPieces,
   deletePatternPieceInPieces,
   deletePatternPointsInPieces,
   duplicatePatternPiece,
   focusPatternPointsInPieces,
+  focusPatternSegmentInPieces,
   insertPatternPointInPieces,
   translatePatternSegmentInPieces,
   updateCurveHandleInPieces,
@@ -192,6 +194,23 @@ export function usePatternEditor() {
     );
   }
 
+  function bendPatternSegment(
+    pieceId: string,
+    startPointId: string,
+    endPointId: string,
+    bendPoint: PointPosition,
+  ) {
+    updatePieces((currentPieces) =>
+      bendPatternSegmentInPieces(
+        currentPieces,
+        pieceId,
+        startPointId,
+        endPointId,
+        bendPoint,
+      ),
+    );
+  }
+
   function focusPatternPoints(pieceId: string, pointIds: string[]) {
     setSelectedPieceId(pieceId);
     setFocusedPoint({
@@ -228,7 +247,12 @@ export function usePatternEditor() {
     });
 
     updatePieces((currentPieces) =>
-      focusPatternPointsInPieces(currentPieces, pieceId, pointIds),
+      focusPatternSegmentInPieces(
+        currentPieces,
+        pieceId,
+        startPointId,
+        endPointId,
+      ),
     );
   }
 
@@ -546,6 +570,7 @@ export function usePatternEditor() {
 
   return {
     activeTool,
+    bendPatternSegment,
     beginHistoryTransaction,
     canRedo,
     canUndo,

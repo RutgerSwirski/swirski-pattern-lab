@@ -80,6 +80,47 @@ export function translatePatternSegmentInPieces(
   );
 }
 
+export function bendPatternSegmentInPieces(
+  pieces: PatternPiece[],
+  pieceId: string,
+  startPointId: string,
+  endPointId: string,
+  bendPoint: PointPosition,
+) {
+  return updatePairedPoints(pieces, pieceId, (editedPiece) => {
+    const start = editedPiece.points.find((point) => point.id === startPointId);
+    const end = editedPiece.points.find((point) => point.id === endPointId);
+
+    if (!start || !end) {
+      return editedPiece.points;
+    }
+
+    const { curveOut, curveIn } = getSegmentBendHandles(
+      start,
+      end,
+      bendPoint,
+    );
+
+    return editedPiece.points.map((point) => {
+      if (point.id === startPointId) {
+        return {
+          ...point,
+          curveOut,
+        };
+      }
+
+      if (point.id === endPointId) {
+        return {
+          ...point,
+          curveIn,
+        };
+      }
+
+      return point;
+    });
+  });
+}
+
 export function focusPatternPointsInPieces(
   pieces: PatternPiece[],
   pieceId: string,
@@ -108,6 +149,55 @@ export function focusPatternPointsInPieces(
           y: point.y + (next.y - point.y) / 3,
         },
       };
+    }),
+  );
+}
+
+export function focusPatternSegmentInPieces(
+  pieces: PatternPiece[],
+  pieceId: string,
+  startPointId: string,
+  endPointId: string,
+) {
+  return updatePairedPoints(pieces, pieceId, (editedPiece) =>
+    editedPiece.points.map((point) => {
+      if (point.id === startPointId && !point.curveOut) {
+        const end = editedPiece.points.find(
+          (currentPoint) => currentPoint.id === endPointId,
+        );
+
+        if (!end) {
+          return point;
+        }
+
+        return {
+          ...point,
+          curveOut: {
+            x: point.x + (end.x - point.x) / 3,
+            y: point.y + (end.y - point.y) / 3,
+          },
+        };
+      }
+
+      if (point.id === endPointId && !point.curveIn) {
+        const start = editedPiece.points.find(
+          (currentPoint) => currentPoint.id === startPointId,
+        );
+
+        if (!start) {
+          return point;
+        }
+
+        return {
+          ...point,
+          curveIn: {
+            x: point.x + (start.x - point.x) / 3,
+            y: point.y + (start.y - point.y) / 3,
+          },
+        };
+      }
+
+      return point;
     }),
   );
 }
@@ -382,5 +472,27 @@ function movePatternPoint(
           y: point.curveOut.y + deltaY,
         }
       : undefined,
+  };
+}
+
+function getSegmentBendHandles(
+  start: PointPosition,
+  end: PointPosition,
+  bendPoint: PointPosition,
+) {
+  const bendOffset = {
+    x: bendPoint.x - (start.x + end.x) / 2,
+    y: bendPoint.y - (start.y + end.y) / 2,
+  };
+
+  return {
+    curveOut: {
+      x: start.x + (end.x - start.x) / 3 + (bendOffset.x * 4) / 3,
+      y: start.y + (end.y - start.y) / 3 + (bendOffset.y * 4) / 3,
+    },
+    curveIn: {
+      x: start.x + ((end.x - start.x) * 2) / 3 + (bendOffset.x * 4) / 3,
+      y: start.y + ((end.y - start.y) * 2) / 3 + (bendOffset.y * 4) / 3,
+    },
   };
 }

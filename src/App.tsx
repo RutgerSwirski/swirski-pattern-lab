@@ -103,6 +103,7 @@ function App() {
         onAddDraftPoint={(point) =>
           editor.setDraftPoints((currentPoints) => [...currentPoints, point])
         }
+        onBendPatternSegment={editor.bendPatternSegment}
         onBeginHistoryTransaction={editor.beginHistoryTransaction}
         onClearSelection={editor.clearSelection}
         onClearBezierSegment={editor.clearBezierSegment}

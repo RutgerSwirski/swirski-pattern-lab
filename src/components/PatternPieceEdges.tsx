@@ -41,6 +41,12 @@ type PatternPieceEdgesProps = {
     screenPoint: PointPosition,
   ) => PointPosition;
   onBeginHistoryTransaction: () => void;
+  onBendPatternSegment: (
+    pieceId: string,
+    startPointId: string,
+    endPointId: string,
+    bendPoint: PointPosition,
+  ) => void;
   onCommitHistoryTransaction: () => void;
   onFocusPatternSegment: (
     pieceId: string,
@@ -74,6 +80,7 @@ export function PatternPieceEdges({
   piece,
   screenToPiecePoint,
   onBeginHistoryTransaction,
+  onBendPatternSegment,
   onCommitHistoryTransaction,
   onFocusPatternSegment,
   onInsertPatternPoint,
@@ -91,12 +98,14 @@ export function PatternPieceEdges({
   const edgeDragMoved = useRef(false);
   const edgeDragStartPointer = useRef<PointPosition | null>(null);
   const edgeDragStartPoint = useRef<PointPosition | null>(null);
+  const edgeDragMode = useRef<"bend" | "move" | null>(null);
   const edgeDragSnappedOffset = useRef<PointPosition>({ x: 0, y: 0 });
   const edgePointerButton = useRef<number | null>(null);
   const suppressEdgeClickUntil = useRef(0);
   const edges = getPatternEdges(piece);
   const canAddPoint = activeTool === "select" && pieceTool === "add-point";
   const canCurveSegment = activeTool === "select" && pieceTool === "curve";
+  const canBendSegment = canCurveSegment;
   const canMoveSegment = activeTool === "select" && pieceTool === "move";
   const hoverEdge =
     hoverPoint && canAddPoint
@@ -258,13 +267,31 @@ export function PatternPieceEdges({
           if (
             !pointer ||
             !edgeDragStartPointer.current ||
-            !edgeDragStartPoint.current
+            (!edgeDragStartPoint.current && edgeDragMode.current === "move")
           ) {
             event.target.position({ x: 0, y: 0 });
             return;
           }
 
           const localPointer = screenToPiecePoint(piece, pointer);
+
+          if (edgeDragMode.current === "bend") {
+            edgeDragMoved.current = true;
+            onBendPatternSegment(
+              piece.id,
+              edge.start.id,
+              edge.end.id,
+              localPointer,
+            );
+            event.target.position({ x: 0, y: 0 });
+            return;
+          }
+
+          if (!edgeDragStartPoint.current) {
+            event.target.position({ x: 0, y: 0 });
+            return;
+          }
+
           const rawOffset = {
             x: localPointer.x - edgeDragStartPointer.current.x,
             y: localPointer.y - edgeDragStartPointer.current.y,
@@ -302,6 +329,7 @@ export function PatternPieceEdges({
           edgeDragMoved.current = false;
           edgeDragStartPointer.current = null;
           edgeDragStartPoint.current = null;
+          edgeDragMode.current = null;
           edgeDragSnappedOffset.current = { x: 0, y: 0 };
           edgePointerButton.current = null;
           event.target.position({ x: 0, y: 0 });
@@ -341,7 +369,7 @@ export function PatternPieceEdges({
               stroke="rgba(37, 99, 235, 0.01)"
               strokeWidth={10 / camera.scale}
               hitStrokeWidth={14 / camera.scale}
-              draggable={canMoveSegment}
+              draggable={canMoveSegment || canBendSegment}
               onMouseDown={(event) => {
                 edgePointerButton.current = event.evt.button;
 
@@ -365,15 +393,21 @@ export function PatternPieceEdges({
                 event.cancelBubble = true;
                 onBeginHistoryTransaction();
                 edgeDragMoved.current = false;
+                edgeDragMode.current = canBendSegment ? "bend" : "move";
                 suppressEdgeClickUntil.current = 0;
                 setHoverPoint(null);
                 setHoveredEdgeId(null);
+
+                if (edgeDragMode.current === "bend") {
+                  onFocusPatternSegment(piece.id, edge.start.id, edge.end.id);
+                }
 
                 const pointer = event.target.getStage()?.getPointerPosition();
                 edgeDragStartPointer.current = pointer
                   ? screenToPiecePoint(piece, pointer)
                   : null;
-                edgeDragStartPoint.current = edge.start;
+                edgeDragStartPoint.current =
+                  edgeDragMode.current === "move" ? edge.start : null;
                 edgeDragSnappedOffset.current = { x: 0, y: 0 };
                 event.target.position({ x: 0, y: 0 });
               }}

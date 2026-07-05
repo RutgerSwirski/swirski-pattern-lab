@@ -38,6 +38,12 @@ type PatternCanvasProps = {
   viewport: Viewport;
   makeId: (prefix: string) => string;
   onAddDraftPoint: (point: PatternPoint) => void;
+  onBendPatternSegment: (
+    pieceId: string,
+    startPointId: string,
+    endPointId: string,
+    bendPoint: PointPosition,
+  ) => void;
   onBeginHistoryTransaction: () => void;
   onClearBezierSegment: (pieceId: string, startPointId: string) => void;
   onClearSelection: () => void;
@@ -96,6 +102,7 @@ export function PatternCanvas({
   viewport,
   makeId,
   onAddDraftPoint,
+  onBendPatternSegment,
   onBeginHistoryTransaction,
   onClearBezierSegment,
   onClearSelection,
@@ -288,6 +295,7 @@ export function PatternCanvas({
                   y: event.evt.clientY,
                 });
               }}
+              onBendPatternSegment={onBendPatternSegment}
               onFocusPatternPoint={onFocusPatternPoint}
               onFocusPatternSegment={onFocusPatternSegment}
               onInsertPatternPoint={onInsertPatternPoint}
