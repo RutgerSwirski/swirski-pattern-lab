@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { getClosestPointOnSegment, getGridSnappedTranslation } from "./geometry";
+import {
+  getClosestPointOnSegment,
+  getGridSnappedTranslation,
+  getSegmentLength,
+  getSegmentSplitLengths,
+} from "./geometry";
 
 function expectPointOnSegmentLine(
   point: { x: number; y: number },
@@ -59,5 +64,37 @@ describe("geometry", () => {
       delta: { x: 10, y: 10 },
       offset: { x: 10, y: 20 },
     });
+  });
+
+  it("previews split segment lengths for straight edges", () => {
+    expect(
+      getSegmentSplitLengths(
+        { id: "a", x: 0, y: 0 },
+        { id: "b", x: 100, y: 0 },
+        0.35,
+      ),
+    ).toEqual({ first: 35, second: 65 });
+  });
+
+  it("previews split segment lengths for bezier edges", () => {
+    const start = {
+      id: "a",
+      x: 0,
+      y: 0,
+      curveOut: { x: 0, y: 80 },
+    };
+    const end = {
+      id: "b",
+      x: 100,
+      y: 0,
+      curveIn: { x: 100, y: 80 },
+    };
+    const splitLengths = getSegmentSplitLengths(start, end, 0.5);
+
+    expect(
+      Math.abs(splitLengths.first + splitLengths.second - getSegmentLength(start, end)),
+    ).toBeLessThan(0.2);
+    expect(splitLengths.first).toBeGreaterThan(50);
+    expect(splitLengths.second).toBeGreaterThan(50);
   });
 });

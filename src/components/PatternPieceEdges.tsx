@@ -8,6 +8,7 @@ import {
   getLineLength,
   getSegmentLabelGeometry,
   getSegmentLength,
+  getSegmentSplitLengths,
 } from "../lib/geometry";
 import { MM_TO_PX } from "../lib/patternConfig";
 import type {
@@ -97,6 +98,10 @@ export function PatternPieceEdges({
   const canAddPoint = activeTool === "select" && pieceTool === "add-point";
   const canCurveSegment = activeTool === "select" && pieceTool === "curve";
   const canMoveSegment = activeTool === "select" && pieceTool === "move";
+  const hoverEdge =
+    hoverPoint && canAddPoint
+      ? (edges.find((edge) => edge.id === hoverPoint.edgeId) ?? null)
+      : null;
 
   return (
     <>
@@ -435,6 +440,14 @@ export function PatternPieceEdges({
 
       {canAddPoint && hoverPoint && (
         <Group x={hoverPoint.point.x} y={hoverPoint.point.y} listening={false}>
+          {hoverEdge && (
+            <SplitLengthPreview
+              camera={camera}
+              edge={hoverEdge}
+              progress={hoverPoint.progress}
+            />
+          )}
+
           <Circle
             radius={7 / camera.scale}
             fill="rgba(37, 99, 235, 0.16)"
@@ -451,6 +464,47 @@ export function PatternPieceEdges({
         </Group>
       )}
     </>
+  );
+}
+
+function SplitLengthPreview({
+  camera,
+  edge,
+  progress,
+}: {
+  camera: Camera;
+  edge: PatternEdge;
+  progress: number;
+}) {
+  const lengths = getSegmentSplitLengths(edge.start, edge.end, progress);
+  const labelWidth = 86 / (MM_TO_PX * camera.scale);
+  const labelHeight = 18 / (MM_TO_PX * camera.scale);
+  const labelY = -24 / (MM_TO_PX * camera.scale);
+  const text = `${Math.round(lengths.first)} | ${Math.round(lengths.second)} mm`;
+
+  return (
+    <Group y={labelY}>
+      <Rect
+        x={-labelWidth / 2}
+        y={-labelHeight / 2}
+        width={labelWidth}
+        height={labelHeight}
+        fill="rgba(255, 255, 255, 0.96)"
+        stroke="#2563eb"
+        strokeWidth={0.85 / camera.scale}
+        cornerRadius={3 / camera.scale}
+      />
+
+      <Text
+        x={-labelWidth / 2}
+        y={-labelHeight / 2 + 2 / camera.scale}
+        width={labelWidth}
+        text={text}
+        align="center"
+        fontSize={10 / (MM_TO_PX * camera.scale)}
+        fill="#1d4ed8"
+      />
+    </Group>
   );
 }
 

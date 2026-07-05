@@ -215,6 +215,47 @@ export function getSegmentLength(start: PatternPoint, end: PatternPoint) {
   return length;
 }
 
+export function getSegmentSplitLengths(
+  start: PatternPoint,
+  end: PatternPoint,
+  progress: number,
+) {
+  const controlA = start.curveOut ?? start;
+  const controlB = end.curveIn ?? end;
+
+  if (controlA === start && controlB === end) {
+    const length = getLineLength(start, end);
+    const clampedProgress = Math.min(1, Math.max(0, progress));
+
+    return {
+      first: length * clampedProgress,
+      second: length * (1 - clampedProgress),
+    };
+  }
+
+  const split = getSplitCubicBezier(start, controlA, controlB, end, progress);
+  const splitPoint = {
+    id: "split-preview",
+    ...split.point,
+    curveIn: split.first.controlB,
+    curveOut: split.second.controlA,
+  };
+
+  return {
+    first: getSegmentLength(
+      {
+        ...start,
+        curveOut: split.first.controlA,
+      },
+      splitPoint,
+    ),
+    second: getSegmentLength(splitPoint, {
+      ...end,
+      curveIn: split.second.controlB,
+    }),
+  };
+}
+
 export function getClosestPointOnSegment(
   point: PointPosition,
   start: PointPosition,
