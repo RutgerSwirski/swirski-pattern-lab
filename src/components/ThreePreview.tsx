@@ -259,7 +259,7 @@ function PatternPiecePanel({
     const nextGeometry = new THREE.ShapeGeometry(shape, 24);
 
     // Guarantees the gizmo pivot is visually centred on the fabric panel.
-    nextGeometry.center();
+    // nextGeometry.center();
 
     return nextGeometry;
   }, [piece, patternUnitsPerMillimetre]);

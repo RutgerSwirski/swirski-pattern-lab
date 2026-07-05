@@ -5,6 +5,7 @@ import { drawPatternOutline, snapToGrid } from "../lib/geometry";
 import type {
   Camera,
   FocusedCurveHandle,
+  PatternEdgeRef,
   PatternPiece,
   PieceTool,
   PointPosition,
@@ -72,6 +73,7 @@ type PatternPieceNodeProps = {
     position: PointPosition,
   ) => void;
   onUpdatePiecePosition: (pieceId: string, x: number, y: number) => void;
+  onSelectSeamEdge: (edge: PatternEdgeRef) => void;
 };
 
 export function PatternPieceNode({
@@ -95,6 +97,7 @@ export function PatternPieceNode({
   onUpdatePatternPoint,
   onUpdateCurveHandle,
   onUpdatePiecePosition,
+  onSelectSeamEdge,
 }: PatternPieceNodeProps) {
   const canMoveGeometry =
     activeTool === "select" && isSelected && pieceTool === "move";
@@ -161,7 +164,7 @@ export function PatternPieceNode({
         strokeWidth={(isSelected ? 1.5 : 1) / camera.scale}
       />
 
-      {isSelected && (
+      {(isSelected || activeTool === "sew") && (
         <PatternPieceEdges
           activeTool={activeTool}
           camera={camera}
@@ -175,6 +178,7 @@ export function PatternPieceNode({
           onInsertPatternPoint={onInsertPatternPoint}
           onOpenBezierContextMenu={onOpenBezierContextMenu}
           onSelectPieceTool={onSelectPieceTool}
+          onSelectSeamEdge={onSelectSeamEdge}
           onTranslatePatternSegment={onTranslatePatternSegment}
         />
       )}

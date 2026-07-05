@@ -23,16 +23,18 @@ import {
   updatePiecePositionInPieces,
 } from "../lib/patternOperations";
 import { createSymmetricPiecePair } from "../lib/symmetry";
-import type {
-  FocusedCurveHandle,
-  PatternPiece,
-  PatternPoint,
-  PieceTool,
-  PieceMetadata,
-  PointPosition,
-  Tool,
-  PreviewTransform,
-  PiecePreviewTransformUpdate,
+import {
+  type FocusedCurveHandle,
+  type PatternPiece,
+  type PatternPoint,
+  type PieceTool,
+  type PieceMetadata,
+  type PointPosition,
+  type Tool,
+  type PreviewTransform,
+  type PiecePreviewTransformUpdate,
+  type PatternSeam,
+  type PatternEdgeRef,
 } from "../types";
 
 type FocusedPoint = {
@@ -66,6 +68,14 @@ function createInitialPiece(): PatternPiece {
   };
 }
 
+function areSameEdges(a: PatternEdgeRef, b: PatternEdgeRef) {
+  return (
+    a.pieceId === b.pieceId &&
+    a.startPointId === b.startPointId &&
+    a.endPointId === b.endPointId
+  );
+}
+
 export function usePatternEditor() {
   const [activeTool, setActiveTool] = useState<Tool>("select");
   const [pieceTool, setPieceTool] = useState<PieceTool>("move");
@@ -78,12 +88,18 @@ export function usePatternEditor() {
   const [draftCursor, setDraftCursor] = useState<PointPosition | null>(null);
   const [selectedPieceId, setSelectedPieceId] = useState<string | null>(null);
   const [focusedPoint, setFocusedPoint] = useState<FocusedPoint | null>(null);
+  const [seams, setSeams] = useState<PatternSeam[]>([]);
+  const [pendingSeamEdge, setPendingSeamEdge] = useState<PatternEdgeRef | null>(
+    null,
+  );
+
   const idSeed = useRef(crypto.randomUUID());
   const nextId = useRef(1);
   const copiedPiece = useRef<PatternPiece | null>(null);
   const pasteCount = useRef(0);
   const historyTransactionStart = useRef<PatternPiece[] | null>(null);
   const historyTransactionChanged = useRef(false);
+
   const pieces = pieceHistory.present;
   const selectedPiece =
     pieces.find((piece) => piece.id === selectedPieceId) ?? null;
@@ -696,6 +712,35 @@ export function usePatternEditor() {
     [updatePieces],
   );
 
+  const selectSeamEdge = useCallback(
+    (edge: PatternEdgeRef) => {
+      if (!pendingSeamEdge) {
+        setPendingSeamEdge(edge);
+        return;
+      }
+
+      if (areSameEdges(pendingSeamEdge, edge)) {
+        setPendingSeamEdge(null);
+        return;
+      }
+
+      setSeams((currentSeams) => [
+        ...currentSeams,
+        {
+          id: makeId("seam"),
+          edgeA: pendingSeamEdge,
+          edgeB: edge,
+          reverseEdgeB: true,
+          kind: "plain",
+        },
+      ]);
+
+      setPendingSeamEdge(null);
+      setActiveTool("select");
+    },
+    [makeId, pendingSeamEdge],
+  );
+
   return {
     activeTool,
     bendPatternSegment,
@@ -738,5 +783,8 @@ export function usePatternEditor() {
     updatePiecePreviewTransform,
     flipPiecePreview,
     updatePiecePreviewTransforms,
+    seams,
+    pendingSeamEdge,
+    selectSeamEdge,
   };
 }

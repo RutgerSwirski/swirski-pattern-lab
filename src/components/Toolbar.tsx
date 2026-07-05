@@ -47,6 +47,13 @@ export function Toolbar({
         Draw Piece
       </button>
 
+      <button
+        className={activeTool === "sew" ? "active" : ""}
+        onClick={() => onSelectTool("sew")}
+      >
+        Sew
+      </button>
+
       {activeTool === "draw" && (
         <>
           <button onClick={onFinishDraft} disabled={draftPointCount < 3}>

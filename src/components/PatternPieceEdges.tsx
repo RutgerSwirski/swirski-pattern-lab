@@ -18,6 +18,7 @@ import type {
   PieceTool,
   PointPosition,
   Tool,
+  PatternEdgeRef,
 } from "../types";
 
 type PatternEdge = {
@@ -71,6 +72,8 @@ type PatternPieceEdgesProps = {
     deltaX: number,
     deltaY: number,
   ) => void;
+
+  onSelectSeamEdge: (edge: PatternEdgeRef) => void;
 };
 
 export function PatternPieceEdges({
@@ -87,6 +90,7 @@ export function PatternPieceEdges({
   onOpenBezierContextMenu,
   onSelectPieceTool,
   onTranslatePatternSegment,
+  onSelectSeamEdge,
 }: PatternPieceEdgesProps) {
   const [hoverPoint, setHoverPoint] = useState<{
     edgeId: string;
@@ -161,6 +165,16 @@ export function PatternPieceEdges({
             return;
           }
 
+          if (activeTool === "sew") {
+            onSelectSeamEdge({
+              pieceId: piece.id,
+              startPointId: edge.start.id,
+              endPointId: edge.end.id,
+            });
+
+            return;
+          }
+
           if (canCurveSegment) {
             if (clickTimer.current) {
               clearTimeout(clickTimer.current);
@@ -201,6 +215,10 @@ export function PatternPieceEdges({
           event: Konva.KonvaEventObject<MouseEvent | TouchEvent>,
         ) {
           event.cancelBubble = true;
+
+          if (activeTool === "sew") {
+            return;
+          }
 
           if (edgePointerButton.current !== 0) {
             return;

@@ -252,6 +252,7 @@ function App() {
           onUpdateCurveHandle={editor.updateCurveHandle}
           onUpdatePatternPoint={editor.updatePatternPoint}
           onUpdatePiecePosition={editor.updatePiecePosition}
+          onSelectSeamEdge={editor.selectSeamEdge}
         />
       </section>
 

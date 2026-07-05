@@ -3,15 +3,11 @@ import { useState } from "react";
 import { Group, Layer, Stage } from "react-konva";
 
 import { snapToGrid } from "../lib/geometry";
-import {
-  MAX_ZOOM,
-  MIN_ZOOM,
-  MM_TO_PX,
-  ZOOM_STEP,
-} from "../lib/patternConfig";
+import { MAX_ZOOM, MIN_ZOOM, MM_TO_PX, ZOOM_STEP } from "../lib/patternConfig";
 import type {
   Camera,
   FocusedCurveHandle,
+  PatternEdgeRef,
   PatternPiece,
   PatternPoint,
   PieceTool,
@@ -86,6 +82,7 @@ type PatternCanvasProps = {
     y: number,
   ) => void;
   onUpdatePiecePosition: (pieceId: string, x: number, y: number) => void;
+  onSelectSeamEdge: (edge: PatternEdgeRef) => void;
 };
 
 export function PatternCanvas({
@@ -120,6 +117,7 @@ export function PatternCanvas({
   onUpdateCurveHandle,
   onUpdatePatternPoint,
   onUpdatePiecePosition,
+  onSelectSeamEdge,
 }: PatternCanvasProps) {
   const [contextMenu, setContextMenu] = useState<{
     pieceId: string;
@@ -153,171 +151,171 @@ export function PatternCanvas({
           width={viewport.width}
           height={viewport.height}
           onWheel={(event) => {
-        event.evt.preventDefault();
+            event.evt.preventDefault();
 
-        const stage = event.target.getStage();
-        const pointer = stage?.getPointerPosition();
+            const stage = event.target.getStage();
+            const pointer = stage?.getPointerPosition();
 
-        if (!pointer) {
-          return;
-        }
+            if (!pointer) {
+              return;
+            }
 
-        if (!event.evt.ctrlKey) {
-          onSetCamera((currentCamera) => ({
-            ...currentCamera,
-            x: currentCamera.x - event.evt.deltaX,
-            y: currentCamera.y - event.evt.deltaY,
-          }));
-          return;
-        }
+            if (!event.evt.ctrlKey) {
+              onSetCamera((currentCamera) => ({
+                ...currentCamera,
+                x: currentCamera.x - event.evt.deltaX,
+                y: currentCamera.y - event.evt.deltaY,
+              }));
+              return;
+            }
 
-        onSetCamera((currentCamera) => {
-          const zoomDirection = event.evt.deltaY > 0 ? -1 : 1;
+            onSetCamera((currentCamera) => {
+              const zoomDirection = event.evt.deltaY > 0 ? -1 : 1;
 
-          const newScale = Math.min(
-            MAX_ZOOM,
-            Math.max(
-              MIN_ZOOM,
-              currentCamera.scale * Math.pow(ZOOM_STEP, zoomDirection),
-            ),
-          );
+              const newScale = Math.min(
+                MAX_ZOOM,
+                Math.max(
+                  MIN_ZOOM,
+                  currentCamera.scale * Math.pow(ZOOM_STEP, zoomDirection),
+                ),
+              );
 
-          const worldPointUnderCursor = {
-            x: (pointer.x - currentCamera.x) / currentCamera.scale,
-            y: (pointer.y - currentCamera.y) / currentCamera.scale,
-          };
+              const worldPointUnderCursor = {
+                x: (pointer.x - currentCamera.x) / currentCamera.scale,
+                y: (pointer.y - currentCamera.y) / currentCamera.scale,
+              };
 
-          return {
-            scale: newScale,
-            x: pointer.x - worldPointUnderCursor.x * newScale,
-            y: pointer.y - worldPointUnderCursor.y * newScale,
-          };
-        });
+              return {
+                scale: newScale,
+                x: pointer.x - worldPointUnderCursor.x * newScale,
+                y: pointer.y - worldPointUnderCursor.y * newScale,
+              };
+            });
           }}
           onMouseDown={(event) => {
-        setContextMenu(null);
+            setContextMenu(null);
 
-        const stage = event.target.getStage();
+            const stage = event.target.getStage();
 
-        if (!stage) {
-          return;
-        }
+            if (!stage) {
+              return;
+            }
 
-        const pointer = stage.getPointerPosition();
+            const pointer = stage.getPointerPosition();
 
-        if (!pointer) {
-          return;
-        }
+            if (!pointer) {
+              return;
+            }
 
-        if (activeTool === "select" && event.target === stage) {
-          onClearSelection();
-          onSetIsPanning(true);
-          onSetLastPointerPosition(pointer);
-          return;
-        }
+            if (activeTool === "select" && event.target === stage) {
+              onClearSelection();
+              onSetIsPanning(true);
+              onSetLastPointerPosition(pointer);
+              return;
+            }
 
-        if (activeTool !== "draw" || event.target !== stage) {
-          return;
-        }
+            if (activeTool !== "draw" || event.target !== stage) {
+              return;
+            }
 
-        const point = screenToPatternPoint(pointer);
+            const point = screenToPatternPoint(pointer);
 
-        onAddDraftPoint({
-          id: makeId("point"),
-          ...point,
-        });
+            onAddDraftPoint({
+              id: makeId("point"),
+              ...point,
+            });
           }}
           onMouseMove={(event) => {
-        const pointer = event.target.getStage()?.getPointerPosition();
+            const pointer = event.target.getStage()?.getPointerPosition();
 
-        if (!pointer) {
-          return;
-        }
+            if (!pointer) {
+              return;
+            }
 
-        if (activeTool === "draw" && !isPanning) {
-          onSetDraftCursor(screenToPatternPoint(pointer));
-        }
+            if (activeTool === "draw" && !isPanning) {
+              onSetDraftCursor(screenToPatternPoint(pointer));
+            }
 
-        if (!isPanning || !lastPointerPosition) {
-          return;
-        }
+            if (!isPanning || !lastPointerPosition) {
+              return;
+            }
 
-        const deltaX = pointer.x - lastPointerPosition.x;
-        const deltaY = pointer.y - lastPointerPosition.y;
+            const deltaX = pointer.x - lastPointerPosition.x;
+            const deltaY = pointer.y - lastPointerPosition.y;
 
-        onSetCamera((currentCamera) => ({
-          ...currentCamera,
-          x: currentCamera.x + deltaX,
-          y: currentCamera.y + deltaY,
-        }));
+            onSetCamera((currentCamera) => ({
+              ...currentCamera,
+              x: currentCamera.x + deltaX,
+              y: currentCamera.y + deltaY,
+            }));
 
-        onSetLastPointerPosition(pointer);
+            onSetLastPointerPosition(pointer);
           }}
           onMouseUp={() => {
-        onSetIsPanning(false);
-        onSetLastPointerPosition(null);
+            onSetIsPanning(false);
+            onSetLastPointerPosition(null);
           }}
           onMouseLeave={() => {
-        onSetIsPanning(false);
-        onSetLastPointerPosition(null);
+            onSetIsPanning(false);
+            onSetLastPointerPosition(null);
           }}
         >
-      <GridLayer camera={camera} viewport={viewport} />
+          <GridLayer camera={camera} viewport={viewport} />
 
-      <Layer>
-        <Group
-          x={camera.x}
-          y={camera.y}
-          scaleX={MM_TO_PX * camera.scale}
-          scaleY={MM_TO_PX * camera.scale}
-        >
-          {pieces.map((piece) => (
-            <PatternPieceNode
-              key={piece.id}
-              activeTool={activeTool}
-              camera={camera}
-              focusedCurveHandles={focusedCurveHandles}
-              isSelected={piece.id === selectedPieceId}
-              pieceTool={pieceTool}
-              piece={piece}
-              screenToPiecePoint={screenToPiecePoint}
-              onBeginHistoryTransaction={onBeginHistoryTransaction}
-              onCommitHistoryTransaction={onCommitHistoryTransaction}
-              onOpenBezierContextMenu={(event, startPointId) => {
-                event.cancelBubble = true;
-                event.evt.preventDefault();
-                event.evt.stopPropagation();
+          <Layer>
+            <Group
+              x={camera.x}
+              y={camera.y}
+              scaleX={MM_TO_PX * camera.scale}
+              scaleY={MM_TO_PX * camera.scale}
+            >
+              {pieces.map((piece) => (
+                <PatternPieceNode
+                  key={piece.id}
+                  activeTool={activeTool}
+                  camera={camera}
+                  focusedCurveHandles={focusedCurveHandles}
+                  isSelected={piece.id === selectedPieceId}
+                  pieceTool={pieceTool}
+                  piece={piece}
+                  screenToPiecePoint={screenToPiecePoint}
+                  onBeginHistoryTransaction={onBeginHistoryTransaction}
+                  onCommitHistoryTransaction={onCommitHistoryTransaction}
+                  onOpenBezierContextMenu={(event, startPointId) => {
+                    event.cancelBubble = true;
+                    event.evt.preventDefault();
+                    event.evt.stopPropagation();
 
-                setContextMenu({
-                  pieceId: piece.id,
-                  startPointId,
-                  x: event.evt.clientX,
-                  y: event.evt.clientY,
-                });
-              }}
-              onBendPatternSegment={onBendPatternSegment}
-              onFocusPatternPoint={onFocusPatternPoint}
-              onFocusPatternSegment={onFocusPatternSegment}
-              onInsertPatternPoint={onInsertPatternPoint}
-              onSelectPiece={onSelectPiece}
-              onSelectPieceTool={onSelectPieceTool}
-              onTranslatePatternSegment={onTranslatePatternSegment}
-              onUpdatePatternPoint={onUpdatePatternPoint}
-              onUpdateCurveHandle={onUpdateCurveHandle}
-              onUpdatePiecePosition={onUpdatePiecePosition}
-            />
-          ))}
+                    setContextMenu({
+                      pieceId: piece.id,
+                      startPointId,
+                      x: event.evt.clientX,
+                      y: event.evt.clientY,
+                    });
+                  }}
+                  onBendPatternSegment={onBendPatternSegment}
+                  onFocusPatternPoint={onFocusPatternPoint}
+                  onFocusPatternSegment={onFocusPatternSegment}
+                  onInsertPatternPoint={onInsertPatternPoint}
+                  onSelectPiece={onSelectPiece}
+                  onSelectPieceTool={onSelectPieceTool}
+                  onTranslatePatternSegment={onTranslatePatternSegment}
+                  onUpdatePatternPoint={onUpdatePatternPoint}
+                  onUpdateCurveHandle={onUpdateCurveHandle}
+                  onUpdatePiecePosition={onUpdatePiecePosition}
+                  onSelectSeamEdge={onSelectSeamEdge}
+                />
+              ))}
 
-          <DraftPreview
-            camera={camera}
-            draftCursor={draftCursor}
-            draftPoints={draftPoints}
-          />
-        </Group>
-      </Layer>
+              <DraftPreview
+                camera={camera}
+                draftCursor={draftCursor}
+                draftPoints={draftPoints}
+              />
+            </Group>
+          </Layer>
 
-      <CanvasHud camera={camera} viewport={viewport} />
-
+          <CanvasHud camera={camera} viewport={viewport} />
         </Stage>
       </div>
 

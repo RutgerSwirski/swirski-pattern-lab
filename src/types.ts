@@ -42,7 +42,29 @@ export type PatternPiece = {
   };
 };
 
-export type Tool = "select" | "draw";
+export type PatternEdgeRef = {
+  pieceId: string;
+  startPointId: string;
+  endPointId: string;
+};
+
+export type PatternSeam = {
+  id: string;
+
+  edgeA: PatternEdgeRef;
+  edgeB: PatternEdgeRef;
+
+  /*
+   * Normally true.
+   * Sewing generally maps A start → B end,
+   * and A end → B start.
+   */
+  reverseEdgeB: boolean;
+
+  kind: "plain";
+};
+
+export type Tool = "select" | "draw" | "sew";
 
 export type PieceTool = "move" | "add-point" | "curve";
 
