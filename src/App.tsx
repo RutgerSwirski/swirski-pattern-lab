@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 
 import { PatternCanvas } from "./components/PatternCanvas";
 import { PieceInspector } from "./components/PieceInspector";
@@ -9,8 +15,25 @@ import { usePatternEditor } from "./hooks/usePatternEditor";
 import type { Camera, PointPosition, Viewport } from "./types";
 import { MM_TO_PX } from "./lib/patternConfig";
 
+const MIN_PATTERN_PANEL_WIDTH = 360;
+const MIN_PREVIEW_PANEL_WIDTH = 360;
+const DIVIDER_WIDTH = 10;
+
 function App() {
-  const editorPanelRef = useRef<HTMLDivElement>(null);
+  const appShellRef = useRef<HTMLElement>(null);
+  const editorPanelRef = useRef<HTMLElement>(null);
+
+  const resizeStateRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startWidth: number;
+  } | null>(null);
+
+  const [patternPanelWidth, setPatternPanelWidth] = useState(() =>
+    Math.round(window.innerWidth / 2),
+  );
+
+  const [isResizingPanels, setIsResizingPanels] = useState(false);
 
   const [viewport, setViewport] = useState<Viewport>({
     width: 0,
@@ -27,21 +50,91 @@ function App() {
   const [lastPointerPosition, setLastPointerPosition] =
     useState<PointPosition | null>(null);
 
-  const [baseAnimation, setBaseAnimation] = useState("idle");
-
-  const [additiveWeights, setAdditiveWeights] = useState({
-    sneak_pose: 0,
-    sad_pose: 0,
-    agree: 0,
-    headShake: 0,
-  });
-
   const editor = usePatternEditor();
 
-  useEffect(() => {
-    const element = editorPanelRef.current;
+  const clampPatternPanelWidth = useCallback((requestedWidth: number) => {
+    const shellWidth = appShellRef.current?.clientWidth ?? window.innerWidth;
 
-    if (!element) {
+    const maxPatternPanelWidth = Math.max(
+      MIN_PATTERN_PANEL_WIDTH,
+      shellWidth - MIN_PREVIEW_PANEL_WIDTH - DIVIDER_WIDTH,
+    );
+
+    return Math.min(
+      Math.max(requestedWidth, MIN_PATTERN_PANEL_WIDTH),
+      maxPatternPanelWidth,
+    );
+  }, []);
+
+  const handleDividerPointerDown = (
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) => {
+    event.preventDefault();
+
+    event.currentTarget.setPointerCapture(event.pointerId);
+
+    resizeStateRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startWidth: patternPanelWidth,
+    };
+
+    setIsResizingPanels(true);
+  };
+
+  const handleDividerPointerMove = (
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) => {
+    const resizeState = resizeStateRef.current;
+
+    if (!resizeState || resizeState.pointerId !== event.pointerId) {
+      return;
+    }
+
+    const horizontalMovement = event.clientX - resizeState.startX;
+
+    setPatternPanelWidth(
+      clampPatternPanelWidth(resizeState.startWidth + horizontalMovement),
+    );
+  };
+
+  const finishPanelResize = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const resizeState = resizeStateRef.current;
+
+    if (resizeState?.pointerId !== event.pointerId) {
+      return;
+    }
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+
+    resizeStateRef.current = null;
+    setIsResizingPanels(false);
+  };
+
+  useEffect(() => {
+    const shell = appShellRef.current;
+
+    if (!shell) {
+      return;
+    }
+
+    const observer = new ResizeObserver(() => {
+      setPatternPanelWidth((currentWidth) =>
+        clampPatternPanelWidth(currentWidth),
+      );
+    });
+
+    observer.observe(shell);
+
+    return () => observer.disconnect();
+  }, [clampPatternPanelWidth]);
+
+  useEffect(() => {
+    const editorPanel = editorPanelRef.current;
+
+    if (!editorPanel) {
       return;
     }
 
@@ -52,7 +145,6 @@ function App() {
       };
 
       setViewport((previousViewport) => {
-        // Keeps the same pattern area centred when the panel changes width.
         setCamera((previousCamera) => ({
           ...previousCamera,
           x:
@@ -67,13 +159,19 @@ function App() {
       });
     });
 
-    observer.observe(element);
+    observer.observe(editorPanel);
 
     return () => observer.disconnect();
   }, []);
 
   return (
-    <main className="app-shell">
+    <main
+      ref={appShellRef}
+      className={`app-shell ${isResizingPanels ? "is-resizing" : ""}`}
+      style={{
+        gridTemplateColumns: `${patternPanelWidth}px ${DIVIDER_WIDTH}px minmax(0, 1fr)`,
+      }}
+    >
       <section
         ref={editorPanelRef}
         className="pattern-panel"
@@ -157,22 +255,43 @@ function App() {
         />
       </section>
 
+      <div
+        className="panel-divider"
+        role="separator"
+        aria-label="Resize pattern editor and 3D preview"
+        aria-orientation="vertical"
+        aria-valuenow={Math.round(patternPanelWidth)}
+        tabIndex={0}
+        onPointerDown={handleDividerPointerDown}
+        onPointerMove={handleDividerPointerMove}
+        onPointerUp={finishPanelResize}
+        onPointerCancel={finishPanelResize}
+        onKeyDown={(event) => {
+          const step = event.shiftKey ? 80 : 20;
+
+          if (event.key === "ArrowLeft") {
+            event.preventDefault();
+            setPatternPanelWidth((width) =>
+              clampPatternPanelWidth(width - step),
+            );
+          }
+
+          if (event.key === "ArrowRight") {
+            event.preventDefault();
+            setPatternPanelWidth((width) =>
+              clampPatternPanelWidth(width + step),
+            );
+          }
+        }}
+      />
+
       <aside className="preview-panel">
         <ThreePreview
           modelUrl="/models/swirski_avatar_static_source_test_1.glb"
           pieces={editor.pieces}
           selectedPieceId={editor.selectedPieceId}
           patternUnitsPerMillimetre={MM_TO_PX}
-        >
-          {/*
-      Later:
-
-      <GarmentPreview
-        pieces={editor.pieces}
-        avatarSkeleton={...}
-      />
-    */}
-        </ThreePreview>
+        />
       </aside>
     </main>
   );

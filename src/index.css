@@ -21,12 +21,14 @@ body,
 
 .app-shell {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(360px, 1fr);
-  width: 100vw;
+  width: 100%;
   height: 100dvh;
-  /* background: #111; */
+  overflow: hidden;
 }
 
+.panel-divider:focus-visible {
+  box-shadow: inset 0 0 0 2px #93c5fd;
+}
 .pattern-panel,
 .preview-panel {
   position: relative;
@@ -35,13 +37,35 @@ body,
   overflow: hidden;
 }
 
-.pattern-panel {
+.panel-divider {
   position: relative;
-  border-right: 1px solid #333;
+  z-index: 10;
+  cursor: col-resize;
+  touch-action: none;
+  outline: none;
 }
 
-.preview-panel {
-  /* backgroeund: #181818; */
+.panel-divider::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 4px;
+  width: 2px;
+  content: "";
+  background: #3a3a3a;
+  transition: background 120ms ease;
+}
+
+.panel-divider:hover::before,
+.panel-divider:focus-visible::before,
+.is-resizing .panel-divider::before {
+  background: #7a7a7a;
+}
+
+.is-resizing,
+.is-resizing * {
+  cursor: col-resize !important;
+  user-select: none;
 }
 
 canvas {
@@ -81,12 +105,12 @@ canvas {
 }
 
 .piece-toolbar {
-  position: fixed;
+  position: absolute;
   z-index: 11;
   top: 16px;
   left: 50%;
   display: flex;
-  max-width: calc(100vw - 32px);
+  max-width: calc(100% - 32px);
   gap: 6px;
   padding: 6px;
   overflow-x: auto;
@@ -97,6 +121,20 @@ canvas {
   transform: translateX(-50%);
 }
 
+.piece-inspector {
+  position: absolute;
+  z-index: 10;
+  top: 76px;
+  right: 16px;
+  width: min(320px, calc(100% - 32px));
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid #d8d8d8;
+  border-radius: 8px;
+  box-shadow: 0 18px 45px rgba(20, 20, 20, 0.12);
+}
 .piece-toolbar button {
   flex: 0 0 auto;
   padding: 8px 11px;
@@ -126,21 +164,6 @@ canvas {
   min-height: 26px;
   margin: 2px 2px;
   background: #d8d8d8;
-}
-
-.piece-inspector {
-  position: fixed;
-  z-index: 10;
-  top: 76px;
-  right: 16px;
-  width: min(320px, calc(100vw - 32px));
-  display: grid;
-  gap: 12px;
-  padding: 14px;
-  background: rgba(255, 255, 255, 0.96);
-  border: 1px solid #d8d8d8;
-  border-radius: 8px;
-  box-shadow: 0 18px 45px rgba(20, 20, 20, 0.12);
 }
 
 .piece-inspector__header {
