@@ -736,7 +736,6 @@ export function usePatternEditor() {
       ]);
 
       setPendingSeamEdge(null);
-      setActiveTool("select");
     },
     [makeId, pendingSeamEdge],
   );

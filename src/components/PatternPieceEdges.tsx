@@ -13,12 +13,13 @@ import {
 import { MM_TO_PX } from "../lib/patternConfig";
 import type {
   Camera,
+  PatternEdgeRef,
   PatternPiece,
   PatternPoint,
+  PatternSeam,
   PieceTool,
   PointPosition,
   Tool,
-  PatternEdgeRef,
 } from "../types";
 
 type PatternEdge = {
@@ -74,7 +75,53 @@ type PatternPieceEdgesProps = {
   ) => void;
 
   onSelectSeamEdge: (edge: PatternEdgeRef) => void;
+
+  seams: PatternSeam[];
+  pendingSeamEdge: PatternEdgeRef | null;
 };
+
+const SEAM_COLOURS = [
+  "#f97316", // orange
+  "#8b5cf6", // purple
+  "#10b981", // green
+  "#ec4899", // pink
+  "#0ea5e9", // blue
+  "#eab308", // yellow
+] as const;
+
+function edgeMatchesReference(
+  pieceId: string,
+  startPointId: string,
+  endPointId: string,
+  reference: PatternEdgeRef,
+) {
+  if (!reference) {
+    return false;
+  }
+
+  if (reference.pieceId !== pieceId) {
+    return false;
+  }
+
+  return (
+    (reference.startPointId === startPointId &&
+      reference.endPointId === endPointId) ||
+    (reference.startPointId === endPointId &&
+      reference.endPointId === startPointId)
+  );
+}
+
+function seamContainsEdge(
+  seam: PatternSeam,
+  pieceId: string,
+  startPointId: string,
+  endPointId: string,
+) {
+  return (
+    edgeMatchesReference(pieceId, startPointId, endPointId, seam.edgeA) ||
+    edgeMatchesReference(pieceId, startPointId, endPointId, seam.edgeB)
+  );
+}
 
 export function PatternPieceEdges({
   activeTool,
@@ -90,6 +137,8 @@ export function PatternPieceEdges({
   onOpenBezierContextMenu,
   onSelectPieceTool,
   onTranslatePatternSegment,
+  seams,
+  pendingSeamEdge,
   onSelectSeamEdge,
 }: PatternPieceEdgesProps) {
   const [hoverPoint, setHoverPoint] = useState<{
@@ -119,6 +168,31 @@ export function PatternPieceEdges({
   return (
     <>
       {edges.map((edge) => {
+        console.log({ seams });
+
+        const seamIndex =
+          activeTool === "sew"
+            ? seams.findIndex((seam) =>
+                seamContainsEdge(seam, piece.id, edge.start.id, edge.end.id),
+              )
+            : -1;
+
+        const hasSeam = seamIndex >= 0;
+
+        const seamColour = hasSeam
+          ? SEAM_COLOURS[seamIndex % SEAM_COLOURS.length]
+          : null;
+
+        const isPendingSeam =
+          activeTool === "sew" &&
+          pendingSeamEdge !== null &&
+          edgeMatchesReference(
+            piece.id,
+            edge.start.id,
+            edge.end.id,
+            pendingSeamEdge,
+          );
+
         function getPointOnEdge(
           event: Konva.KonvaEventObject<MouseEvent | TouchEvent>,
         ): { point: PointPosition; progress: number } | null {
@@ -366,7 +440,29 @@ export function PatternPieceEdges({
 
         return (
           <Group key={`edge-hit-${edge.id}`}>
-            {hoveredEdgeId === edge.id && (
+            {hasSeam && seamColour && (
+              <Shape
+                sceneFunc={(context, shape) => {
+                  drawEdgeHitPath(context, shape, edge);
+                }}
+                stroke={seamColour}
+                strokeWidth={6 / camera.scale}
+                listening={false}
+              />
+            )}
+
+            {isPendingSeam && (
+              <Shape
+                sceneFunc={(context, shape) => {
+                  drawEdgeHitPath(context, shape, edge);
+                }}
+                stroke="#facc15"
+                strokeWidth={8 / camera.scale}
+                dash={[8 / camera.scale, 5 / camera.scale]}
+                listening={false}
+              />
+            )}
+            {hoveredEdgeId === edge.id && !hasSeam && !isPendingSeam && (
               <Shape
                 sceneFunc={(context, shape) => {
                   drawEdgeHitPath(context, shape, edge);
@@ -451,12 +547,29 @@ export function PatternPieceEdges({
       })}
 
       {edges.map((edge) => {
-        const labelText = `${Math.round(edge.length)} mm`;
-        const labelWidth = 58 / (MM_TO_PX * camera.scale);
         const labelHeight = 18 / (MM_TO_PX * camera.scale);
         const labelOffset = 13 / (MM_TO_PX * camera.scale);
         const labelX = edge.midpoint.x + edge.normal.x * labelOffset;
         const labelY = edge.midpoint.y + edge.normal.y * labelOffset;
+
+        const seamIndex =
+          activeTool === "sew"
+            ? seams.findIndex((seam) =>
+                seamContainsEdge(seam, piece.id, edge.start.id, edge.end.id),
+              )
+            : -1;
+
+        const hasSeam = seamIndex >= 0;
+
+        const seamColour = hasSeam
+          ? SEAM_COLOURS[seamIndex % SEAM_COLOURS.length]
+          : "#93c5fd";
+
+        const labelText = hasSeam
+          ? `S${seamIndex + 1} · ${Math.round(edge.length)} mm`
+          : `${Math.round(edge.length)} mm`;
+
+        const labelWidth = (hasSeam ? 94 : 58) / (MM_TO_PX * camera.scale);
 
         return (
           <Group
@@ -472,7 +585,7 @@ export function PatternPieceEdges({
               width={labelWidth}
               height={labelHeight}
               fill="rgba(255, 255, 255, 0.94)"
-              stroke="#93c5fd"
+              stroke={seamColour}
               strokeWidth={0.75 / camera.scale}
               cornerRadius={3 / camera.scale}
             />
@@ -484,7 +597,7 @@ export function PatternPieceEdges({
               text={labelText}
               align="center"
               fontSize={10 / (MM_TO_PX * camera.scale)}
-              fill="#1d4ed8"
+              fill={hasSeam ? seamColour : "#000000"}
             />
           </Group>
         );

@@ -10,6 +10,7 @@ import type {
   PieceTool,
   PointPosition,
   Tool,
+  PatternSeam,
 } from "../types";
 import { PatternAngleLabels } from "./PatternAngleLabels";
 import { PatternCurveHandles } from "./PatternCurveHandles";
@@ -74,6 +75,9 @@ type PatternPieceNodeProps = {
   ) => void;
   onUpdatePiecePosition: (pieceId: string, x: number, y: number) => void;
   onSelectSeamEdge: (edge: PatternEdgeRef) => void;
+
+  seams: PatternSeam[];
+  pendingSeamEdge: PatternEdgeRef | null;
 };
 
 export function PatternPieceNode({
@@ -98,6 +102,8 @@ export function PatternPieceNode({
   onUpdateCurveHandle,
   onUpdatePiecePosition,
   onSelectSeamEdge,
+  seams,
+  pendingSeamEdge,
 }: PatternPieceNodeProps) {
   const canMoveGeometry =
     activeTool === "select" && isSelected && pieceTool === "move";
@@ -180,6 +186,8 @@ export function PatternPieceNode({
           onSelectPieceTool={onSelectPieceTool}
           onSelectSeamEdge={onSelectSeamEdge}
           onTranslatePatternSegment={onTranslatePatternSegment}
+          seams={seams}
+          pendingSeamEdge={pendingSeamEdge}
         />
       )}
 

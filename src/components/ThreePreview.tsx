@@ -1,8 +1,8 @@
 import {
   Html,
   OrbitControls,
-  useGLTF,
   TransformControls,
+  useGLTF,
 } from "@react-three/drei";
 import { Canvas } from "@react-three/fiber";
 import {
@@ -17,6 +17,7 @@ import * as THREE from "three";
 
 import type {
   PatternPiece,
+  PatternSeam,
   PiecePreviewTransformUpdate,
   PointPosition,
   PreviewTransform,
@@ -43,6 +44,8 @@ type ThreePreviewProps = {
   ) => void;
 
   onClearSelection?: () => void;
+
+  seams?: PatternSeam[];
 };
 
 const DEFAULT_PREVIEW_TRANSFORMS: readonly PreviewTransform[] = [
@@ -497,10 +500,10 @@ export function ThreePreview({
   onUpdatePiecePreviewTransform,
   onClearSelection,
   onUpdatePiecePreviewTransforms,
+  seams,
 }: ThreePreviewProps) {
   const [transformMode, setTransformMode] =
     useState<TransformMode>("translate");
-
 
   const [hasSelectedPanelObject, setHasSelectedPanelObject] = useState(false);
 
@@ -526,21 +529,21 @@ export function ThreePreview({
     const linkedPieces = getSymmetryLinkedPieces(drawablePieces, selectedPiece);
 
     const updates: PiecePreviewTransformUpdate[] = linkedPieces.map((piece) => {
-  const index = indexByPieceId.get(piece.id) ?? 0;
-  const transform = getPreviewTransform(piece, index);
+      const index = indexByPieceId.get(piece.id) ?? 0;
+      const transform = getPreviewTransform(piece, index);
 
-  return {
-    pieceId: piece.id,
-    previewTransform: {
-      ...transform,
-      scale: [
-        -(transform.scale?.[0] ?? 1),
-        transform.scale?.[1] ?? 1,
-        transform.scale?.[2] ?? 1,
-      ],
-    },
-  };
-});
+      return {
+        pieceId: piece.id,
+        previewTransform: {
+          ...transform,
+          scale: [
+            -(transform.scale?.[0] ?? 1),
+            transform.scale?.[1] ?? 1,
+            transform.scale?.[2] ?? 1,
+          ],
+        },
+      };
+    });
 
     onUpdatePiecePreviewTransforms(updates);
   }, [onUpdatePiecePreviewTransforms, pieces, selectedPiece]);

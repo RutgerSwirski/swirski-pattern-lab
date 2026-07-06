@@ -10,6 +10,7 @@ import type {
   PatternEdgeRef,
   PatternPiece,
   PatternPoint,
+  PatternSeam,
   PieceTool,
   PointPosition,
   Tool,
@@ -83,6 +84,8 @@ type PatternCanvasProps = {
   ) => void;
   onUpdatePiecePosition: (pieceId: string, x: number, y: number) => void;
   onSelectSeamEdge: (edge: PatternEdgeRef) => void;
+
+  seams: PatternSeam[];
 };
 
 export function PatternCanvas({
@@ -118,6 +121,7 @@ export function PatternCanvas({
   onUpdatePatternPoint,
   onUpdatePiecePosition,
   onSelectSeamEdge,
+  seams,
 }: PatternCanvasProps) {
   const [contextMenu, setContextMenu] = useState<{
     pieceId: string;
@@ -304,6 +308,7 @@ export function PatternCanvas({
                   onUpdateCurveHandle={onUpdateCurveHandle}
                   onUpdatePiecePosition={onUpdatePiecePosition}
                   onSelectSeamEdge={onSelectSeamEdge}
+                  seams={seams}
                 />
               ))}
 

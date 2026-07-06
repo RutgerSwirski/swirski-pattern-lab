@@ -253,6 +253,7 @@ function App() {
           onUpdatePatternPoint={editor.updatePatternPoint}
           onUpdatePiecePosition={editor.updatePiecePosition}
           onSelectSeamEdge={editor.selectSeamEdge}
+          seams={editor.seams}
         />
       </section>
 
@@ -296,6 +297,7 @@ function App() {
           onUpdatePiecePreviewTransform={editor.updatePiecePreviewTransform}
           onClearSelection={editor.clearSelection}
           onUpdatePiecePreviewTransforms={editor.updatePiecePreviewTransforms}
+          seams={editor.seams}
         />
       </aside>
     </main>
