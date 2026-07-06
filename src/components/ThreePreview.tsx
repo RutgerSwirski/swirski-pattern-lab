@@ -25,9 +25,9 @@ import type {
 
 import { compileGarment } from "../lib/compileGarment";
 import { compileFabricGarment } from "../lib/compileFabricGarment";
+import { FabricGarmentPreview } from "./FabricGarmentPreview";
 
 import {
-  compileStitchConstraints,
   getPatternEdgePoint,
   type PatternEdgeSample,
   type StitchConstraint,
@@ -583,86 +583,79 @@ function GarmentPreview({
     );
   }, []);
 
-  const drawablePieces = pieces.filter((piece) => piece.points.length >= 3);
-
-  const compiledGarment = useMemo(() => {
-    const piecesWithResolvedDefaults = drawablePieces.map((piece, index) => ({
-      ...piece,
-      previewTransform: getPreviewTransform(piece, index),
-    }));
-
-    return compileGarment(
-      piecesWithResolvedDefaults,
-      seams,
-      patternUnitsPerMillimetre,
-    );
-  }, [drawablePieces, seams, patternUnitsPerMillimetre]);
-
-  const compiledFabric = useMemo(() => {
-    const piecesWithResolvedDefaults = drawablePieces.map((piece, index) => ({
-      ...piece,
-      previewTransform: getPreviewTransform(piece, index),
-    }));
-
-    return compileFabricGarment(
-      piecesWithResolvedDefaults,
-      seams,
-      compiledGarment,
-      patternUnitsPerMillimetre,
-    );
-  }, [compiledGarment, drawablePieces, patternUnitsPerMillimetre, seams]);
-
-  const stitchConstraints = useMemo(
-    () => compileStitchConstraints(drawablePieces, seams),
-    [drawablePieces, seams],
+  const drawablePieces = useMemo(
+    () => pieces.filter((piece) => piece.points.length >= 3),
+    [pieces],
   );
 
-  const piecesById = useMemo(
-    () => new Map(drawablePieces.map((piece) => [piece.id, piece])),
+  const piecesWithResolvedDefaults = useMemo(
+    () =>
+      drawablePieces.map((piece, index) => ({
+        ...piece,
+        previewTransform: getPreviewTransform(piece, index),
+      })),
     [drawablePieces],
   );
 
-  const transformsByPieceId = useMemo(() => {
-    const nextTransforms = new Map<string, PreviewTransform>();
+  const compiledGarment = useMemo(
+    () =>
+      compileGarment(
+        piecesWithResolvedDefaults,
+        seams,
+        patternUnitsPerMillimetre,
+      ),
+    [patternUnitsPerMillimetre, piecesWithResolvedDefaults, seams],
+  );
 
-    for (const [index, piece] of drawablePieces.entries()) {
-      nextTransforms.set(
-        piece.id,
-        compiledGarment.transformsByPieceId[piece.id] ??
-          getPreviewTransform(piece, index),
-      );
-    }
+  const compiledFabric = useMemo(
+    () =>
+      compileFabricGarment(
+        piecesWithResolvedDefaults,
+        seams,
+        compiledGarment,
+        patternUnitsPerMillimetre,
+      ),
+    [
+      compiledGarment,
+      patternUnitsPerMillimetre,
+      piecesWithResolvedDefaults,
+      seams,
+    ],
+  );
 
-    return nextTransforms;
-  }, [compiledGarment.transformsByPieceId, drawablePieces]);
+  /*
+   * Single hinge seams still use your clean static preview.
+   * Closed loops activate PBD relaxation.
+   */
+  const shouldUseFabricSimulation = compiledGarment.cycleSeamIds.length > 0;
 
   return (
     <>
-      <StitchConstraintDebug
-        constraints={stitchConstraints}
-        cycleSeamIds={compiledGarment.cycleSeamIds}
-        piecesById={piecesById}
-        transformsByPieceId={transformsByPieceId}
-        patternUnitsPerMillimetre={patternUnitsPerMillimetre}
-      />
-
-      {drawablePieces.map((piece, index) => (
-        <PatternPiecePanel
-          key={piece.id}
-          piece={piece}
-          isSelected={piece.id === selectedPieceId}
-          transform={
-            compiledGarment.transformsByPieceId[piece.id] ??
-            getPreviewTransform(piece, index)
-          }
-          patternUnitsPerMillimetre={patternUnitsPerMillimetre}
+      {shouldUseFabricSimulation ? (
+        <FabricGarmentPreview
+          compiledFabric={compiledFabric}
+          selectedPieceId={selectedPieceId}
           onSelectPiece={onSelectPiece}
-          onRegisterObject={registerObject}
-          onUnregisterObject={unregisterObject}
         />
-      ))}
+      ) : (
+        drawablePieces.map((piece, index) => (
+          <PatternPiecePanel
+            key={piece.id}
+            piece={piece}
+            isSelected={piece.id === selectedPieceId}
+            transform={
+              compiledGarment.transformsByPieceId[piece.id] ??
+              getPreviewTransform(piece, index)
+            }
+            patternUnitsPerMillimetre={patternUnitsPerMillimetre}
+            onSelectPiece={onSelectPiece}
+            onRegisterObject={registerObject}
+            onUnregisterObject={unregisterObject}
+          />
+        ))
+      )}
 
-      {selectedPieceId && (
+      {!shouldUseFabricSimulation && selectedPieceId && (
         <SelectedPieceTransformGizmo
           pieceId={selectedPieceId}
           object={selectedObject}
