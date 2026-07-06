@@ -168,8 +168,6 @@ export function PatternPieceEdges({
   return (
     <>
       {edges.map((edge) => {
-        console.log({ seams });
-
         const seamIndex =
           activeTool === "sew"
             ? seams.findIndex((seam) =>
