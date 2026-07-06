@@ -4,6 +4,9 @@ import { getSegmentLength } from "./geometry";
 import { getPatternEdgePoint } from "./compileStitchConstraints";
 import type { CompiledGarment } from "./compileGarment";
 
+import Constrainautor from "@kninnug/constrainautor";
+import Delaunator from "delaunator";
+
 import type {
   PatternEdgeRef,
   PatternPiece,
@@ -15,6 +18,12 @@ const METRES_PER_MILLIMETRE = 0.001;
 
 const DEFAULT_EDGE_SAMPLE_SPACING_MM = 25;
 const STITCH_SAMPLE_SPACING_MM = 20;
+
+const INTERIOR_PARTICLE_SPACING_MM = 25;
+const INTERIOR_PARTICLE_SPACING_METRES =
+  INTERIOR_PARTICLE_SPACING_MM * METRES_PER_MILLIMETRE;
+
+const INTERIOR_BOUNDARY_CLEARANCE = INTERIOR_PARTICLE_SPACING_METRES * 0.22;
 
 export type FabricPanelTopology = {
   pieceId: string;
@@ -80,11 +89,7 @@ type BoundaryEdgeRecord = {
   segmentCount: number;
 };
 
-function edgeKey(
-  pieceId: string,
-  startPointId: string,
-  endPointId: string,
-) {
+function edgeKey(pieceId: string, startPointId: string, endPointId: string) {
   const [firstPointId, secondPointId] = [startPointId, endPointId].sort();
 
   return `${pieceId}:${firstPointId}:${secondPointId}`;
@@ -117,10 +122,7 @@ function getPointById(piece: PatternPiece, pointId: string) {
   return point;
 }
 
-function getPieceEdgeLength(
-  piece: PatternPiece,
-  edge: PatternEdgeRef,
-) {
+function getPieceEdgeLength(piece: PatternPiece, edge: PatternEdgeRef) {
   return getSegmentLength(
     getPointById(piece, edge.startPointId),
     getPointById(piece, edge.endPointId),
@@ -156,10 +158,8 @@ function getPanelLocalPoint(
   const centre = getPieceCentre(piece);
 
   return new THREE.Vector2(
-    ((point.x - centre.x) / patternUnitsPerMillimetre) *
-      METRES_PER_MILLIMETRE,
-    -((point.y - centre.y) / patternUnitsPerMillimetre) *
-      METRES_PER_MILLIMETRE,
+    ((point.x - centre.x) / patternUnitsPerMillimetre) * METRES_PER_MILLIMETRE,
+    -((point.y - centre.y) / patternUnitsPerMillimetre) * METRES_PER_MILLIMETRE,
   );
 }
 
@@ -206,7 +206,156 @@ function getSeamSampleCounts(
   return sampleCountsByEdgeKey;
 }
 
-function buildPanelBoundary({
+function isPointInsidePolygon(
+  point: THREE.Vector2,
+  polygon: readonly THREE.Vector2[],
+) {
+  let isInside = false;
+
+  for (
+    let currentIndex = 0, previousIndex = polygon.length - 1;
+    currentIndex < polygon.length;
+    previousIndex = currentIndex++
+  ) {
+    const current = polygon[currentIndex];
+    const previous = polygon[previousIndex];
+
+    const crossesHorizontalRay = current.y > point.y !== previous.y > point.y;
+
+    if (!crossesHorizontalRay) {
+      continue;
+    }
+
+    const rayIntersectionX =
+      ((previous.x - current.x) * (point.y - current.y)) /
+        (previous.y - current.y) +
+      current.x;
+
+    if (point.x < rayIntersectionX) {
+      isInside = !isInside;
+    }
+  }
+
+  return isInside;
+}
+
+function getDistanceToSegment(
+  point: THREE.Vector2,
+  start: THREE.Vector2,
+  end: THREE.Vector2,
+) {
+  const direction = end.clone().sub(start);
+  const lengthSquared = direction.lengthSq();
+
+  if (lengthSquared === 0) {
+    return point.distanceTo(start);
+  }
+
+  const projectedProgress = Math.max(
+    0,
+    Math.min(1, point.clone().sub(start).dot(direction) / lengthSquared),
+  );
+
+  const closestPoint = start
+    .clone()
+    .add(direction.multiplyScalar(projectedProgress));
+
+  return point.distanceTo(closestPoint);
+}
+
+function getDistanceToPolygonBoundary(
+  point: THREE.Vector2,
+  polygon: readonly THREE.Vector2[],
+) {
+  let minimumDistance = Number.POSITIVE_INFINITY;
+
+  for (let index = 0; index < polygon.length; index += 1) {
+    const start = polygon[index];
+    const end = polygon[(index + 1) % polygon.length];
+
+    minimumDistance = Math.min(
+      minimumDistance,
+      getDistanceToSegment(point, start, end),
+    );
+  }
+
+  return minimumDistance;
+}
+
+function buildInteriorLatticePoints(contour: readonly THREE.Vector2[]) {
+  const bounds = new THREE.Box2();
+
+  for (const point of contour) {
+    bounds.expandByPoint(point);
+  }
+
+  const points: THREE.Vector2[] = [];
+
+  /*
+   * Triangular lattice gives better cloth triangles than
+   * a plain square grid.
+   */
+  const rowStep = INTERIOR_PARTICLE_SPACING_METRES * (Math.sqrt(3) / 2);
+
+  let rowIndex = 0;
+
+  for (
+    let y = bounds.min.y + INTERIOR_PARTICLE_SPACING_METRES / 2;
+    y < bounds.max.y;
+    y += rowStep
+  ) {
+    const rowOffset =
+      rowIndex % 2 === 0 ? 0 : INTERIOR_PARTICLE_SPACING_METRES / 2;
+
+    for (
+      let x = bounds.min.x + INTERIOR_PARTICLE_SPACING_METRES / 2 + rowOffset;
+      x < bounds.max.x;
+      x += INTERIOR_PARTICLE_SPACING_METRES
+    ) {
+      const candidate = new THREE.Vector2(x, y);
+
+      if (!isPointInsidePolygon(candidate, contour)) {
+        continue;
+      }
+
+      /*
+       * Keeps grid particles away from boundary lines.
+       * This prevents near-duplicate vertices and avoids
+       * invalid constrained edges.
+       */
+      if (
+        getDistanceToPolygonBoundary(candidate, contour) <
+        INTERIOR_BOUNDARY_CLEARANCE
+      ) {
+        continue;
+      }
+
+      points.push(candidate);
+    }
+
+    rowIndex += 1;
+  }
+
+  return points;
+}
+
+function triangleIsInsidePattern(
+  vertices: readonly THREE.Vector2[],
+  a: number,
+  b: number,
+  c: number,
+  contour: readonly THREE.Vector2[],
+) {
+  const centroid = vertices[a]
+    .clone()
+    .add(vertices[b])
+    .add(vertices[c])
+    .multiplyScalar(1 / 3);
+
+  return isPointInsidePolygon(centroid, contour);
+}
+
+function buildPanelMesh({
   piece,
   particleStart,
   patternUnitsPerMillimetre,
@@ -234,9 +383,8 @@ function buildPanelBoundary({
 
     const defaultSampleCount = Math.max(
       2,
-      Math.ceil(
-        getSegmentLength(start, end) / DEFAULT_EDGE_SAMPLE_SPACING_MM,
-      ) + 1,
+      Math.ceil(getSegmentLength(start, end) / DEFAULT_EDGE_SAMPLE_SPACING_MM) +
+        1,
     );
 
     const sampleCount =
@@ -245,27 +393,12 @@ function buildPanelBoundary({
     const segmentCount = sampleCount - 1;
     const startLocalIndex = contour.length;
 
-    /*
-     * Add the start point plus any interior points.
-     * The next edge contributes this edge's final endpoint,
-     * so we do not duplicate it here.
-     */
-    for (
-      let sampleIndex = 0;
-      sampleIndex < segmentCount;
-      sampleIndex += 1
-    ) {
+    for (let sampleIndex = 0; sampleIndex < segmentCount; sampleIndex += 1) {
       const t = sampleIndex / segmentCount;
 
       const point = getPatternEdgePoint(piece, edge, t);
 
-      contour.push(
-        getPanelLocalPoint(
-          piece,
-          point,
-          patternUnitsPerMillimetre,
-        ),
-      );
+      contour.push(getPanelLocalPoint(piece, point, patternUnitsPerMillimetre));
     }
 
     edgeRecords.push({
@@ -281,26 +414,53 @@ function buildPanelBoundary({
     );
   }
 
-  const triangles = THREE.ShapeUtils.triangulateShape(contour, []);
+  const interiorPoints = buildInteriorLatticePoints(contour);
+
+  /*
+   * Boundary vertices remain first.
+   * This is important because seam-edge particle IDs depend on them.
+   */
+  const vertices = [...contour, ...interiorPoints];
+
+  const boundaryConstraints: Array<[number, number]> = contour.map(
+    (_, index) => [index, (index + 1) % contour.length],
+  );
+
+  const delaunay = Delaunator.from(
+    vertices,
+    (point) => point.x,
+    (point) => point.y,
+  );
+
+  /*
+   * Forces every sampled pattern boundary edge to exist
+   * in the final triangle topology.
+   */
+  new Constrainautor(delaunay, boundaryConstraints);
+
+  const triangleIndices: number[] = [];
+
+  for (
+    let triangleOffset = 0;
+    triangleOffset < delaunay.triangles.length;
+    triangleOffset += 3
+  ) {
+    const a = delaunay.triangles[triangleOffset];
+    const b = delaunay.triangles[triangleOffset + 1];
+    const c = delaunay.triangles[triangleOffset + 2];
+
+    if (!triangleIsInsidePattern(vertices, a, b, c, contour)) {
+      continue;
+    }
+
+    triangleIndices.push(a, b, c);
+  }
 
   const edgeParticleIdsByKey: Record<string, number[]> = {};
 
   for (let index = 0; index < edgeRecords.length; index += 1) {
     const record = edgeRecords[index];
-    const nextRecord =
-      edgeRecords[(index + 1) % edgeRecords.length];
-
-    const particleIds = Array.from(
-      { length: record.segmentCount + 1 },
-      (_, sampleIndex) => {
-        const localIndex =
-          sampleIndex === record.segmentCount
-            ? nextRecord.startLocalIndex
-            : record.startLocalIndex + sampleIndex;
-
-        return particleStart + localIndex;
-      },
-    );
+    const nextRecord = edgeRecords[(index + 1) % edgeRecords.length];
 
     edgeParticleIdsByKey[
       edgeKey(
@@ -308,21 +468,24 @@ function buildPanelBoundary({
         record.edge.startPointId,
         record.edge.endPointId,
       )
-    ] = particleIds;
+    ] = Array.from({ length: record.segmentCount + 1 }, (_, sampleIndex) => {
+      const localIndex =
+        sampleIndex === record.segmentCount
+          ? nextRecord.startLocalIndex
+          : record.startLocalIndex + sampleIndex;
+
+      return particleStart + localIndex;
+    });
   }
 
   return {
-    contour,
-    indices: new Uint32Array(triangles.flat()),
+    vertices,
+    indices: new Uint32Array(triangleIndices),
     edgeParticleIdsByKey,
   };
 }
 
-function getDistance(
-  positions: number[],
-  a: number,
-  b: number,
-) {
+function getDistance(positions: number[], a: number, b: number) {
   const aOffset = a * 3;
   const bOffset = b * 3;
 
@@ -339,20 +502,13 @@ export function compileFabricGarment(
   compiledGarment: CompiledGarment,
   patternUnitsPerMillimetre: number,
 ): CompiledFabricGarment {
-  const piecesById = new Map(
-    pieces.map((piece) => [piece.id, piece]),
-  );
+  const piecesById = new Map(pieces.map((piece) => [piece.id, piece]));
 
   const rootPieceIds = new Set(
-    compiledGarment.components.map(
-      (component) => component.rootPieceId,
-    ),
+    compiledGarment.components.map((component) => component.rootPieceId),
   );
 
-  const seamSampleCountsByEdgeKey = getSeamSampleCounts(
-    piecesById,
-    seams,
-  );
+  const seamSampleCountsByEdgeKey = getSeamSampleCounts(piecesById, seams);
 
   const panels: FabricPanelTopology[] = [];
   const restPositionValues: number[] = [];
@@ -361,14 +517,13 @@ export function compileFabricGarment(
   let nextParticleId = 0;
 
   for (const piece of pieces) {
-    const transform =
-      compiledGarment.transformsByPieceId[piece.id];
+    const transform = compiledGarment.transformsByPieceId[piece.id];
 
     if (!transform) {
       continue;
     }
 
-    const panelBoundary = buildPanelBoundary({
+    const panelMesh = buildPanelMesh({
       piece,
       particleStart: nextParticleId,
       patternUnitsPerMillimetre,
@@ -377,37 +532,29 @@ export function compileFabricGarment(
 
     const matrix = previewTransformToMatrix(transform);
 
-    for (const localPoint of panelBoundary.contour) {
+    for (const localPoint of panelMesh.vertices) {
       const worldPoint = new THREE.Vector3(
         localPoint.x,
         localPoint.y,
         0,
       ).applyMatrix4(matrix);
 
-      restPositionValues.push(
-        worldPoint.x,
-        worldPoint.y,
-        worldPoint.z,
-      );
+      restPositionValues.push(worldPoint.x, worldPoint.y, worldPoint.z);
     }
 
     const panel: FabricPanelTopology = {
       pieceId: piece.id,
       particleStart: nextParticleId,
-      particleCount: panelBoundary.contour.length,
-      indices: panelBoundary.indices,
-      edgeParticleIdsByKey: panelBoundary.edgeParticleIdsByKey,
+      particleCount: panelMesh.vertices.length,
+      indices: panelMesh.indices,
+      edgeParticleIdsByKey: panelMesh.edgeParticleIdsByKey,
       isPinned: rootPieceIds.has(piece.id),
     };
 
     panels.push(panel);
 
     if (panel.isPinned) {
-      for (
-        let index = 0;
-        index < panel.particleCount;
-        index += 1
-      ) {
+      for (let index = 0; index < panel.particleCount; index += 1) {
         pinnedParticleIds.push(panel.particleStart + index);
       }
     }
@@ -419,11 +566,7 @@ export function compileFabricGarment(
   const distanceConstraintKeys = new Set<string>();
 
   for (const panel of panels) {
-    for (
-      let index = 0;
-      index < panel.indices.length;
-      index += 3
-    ) {
+    for (let index = 0; index < panel.indices.length; index += 3) {
       const triangle = [
         panel.particleStart + panel.indices[index],
         panel.particleStart + panel.indices[index + 1],
@@ -497,9 +640,7 @@ export function compileFabricGarment(
     );
 
     for (let index = 0; index < pairCount; index += 1) {
-      const edgeBIndex = seam.reverseEdgeB
-        ? pairCount - 1 - index
-        : index;
+      const edgeBIndex = seam.reverseEdgeB ? pairCount - 1 - index : index;
 
       stitchConstraints.push({
         seamId: seam.id,

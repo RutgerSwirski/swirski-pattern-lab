@@ -119,6 +119,7 @@ function FabricPanelMesh({
       }}
     >
       <meshStandardMaterial
+        wireframe
         color={isSelected ? "#f04b3a" : "#4c8df5"}
         side={THREE.DoubleSide}
         roughness={0.75}

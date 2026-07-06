@@ -12,8 +12,10 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@kninnug/constrainautor": "^4.1.0",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.6.1",
+    "delaunator": "^5.1.0",
     "konva": "^10.3.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
