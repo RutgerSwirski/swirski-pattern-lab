@@ -5,9 +5,13 @@ import type {
   FabricStitchConstraint,
 } from "./compileFabricGarment";
 
-import type { EllipsoidCollider, FloorCollider } from "./fabricColliders";
+import type {
+  EllipsoidCollider,
+  FloorCollider,
+  CapsuleCollider,
+} from "./fabricColliders";
 
-const EPSILON = 0.000001;
+export const EPSILON = 0.000001;
 
 type FabricSimulationOptions = {
   iterations?: number;
@@ -15,6 +19,7 @@ type FabricSimulationOptions = {
   gravityY?: number;
   colliders?: EllipsoidCollider[];
   floor?: FloorCollider;
+  capsuleColliders?: CapsuleCollider[];
 };
 
 export type FabricSimulation = {
@@ -165,6 +170,115 @@ function solveEllipsoidCollisions(
   }
 }
 
+function solveCapsuleCollisions(
+  positions: Float32Array,
+  previousPositions: Float32Array,
+  inverseMasses: Float32Array,
+  colliders: CapsuleCollider[],
+) {
+  for (const collider of colliders) {
+    const [startX, startY, startZ] = collider.start;
+    const [endX, endY, endZ] = collider.end;
+
+    const segmentX = endX - startX;
+    const segmentY = endY - startY;
+    const segmentZ = endZ - startZ;
+
+    const segmentLengthSquared =
+      segmentX * segmentX + segmentY * segmentY + segmentZ * segmentZ;
+
+    const contactRadius = collider.radius + collider.clearance;
+    const contactRadiusSquared = contactRadius * contactRadius;
+
+    /*
+     * Used only when a particle lands exactly on the capsule axis.
+     * Push outward from the avatar centre.
+     */
+    const fallbackNormalX = (startX + endX) / 2 < 0 ? -1 : 1;
+
+    for (
+      let particleId = 0;
+      particleId < inverseMasses.length;
+      particleId += 1
+    ) {
+      if (inverseMasses[particleId] === 0) {
+        continue;
+      }
+
+      const offset = particleId * 3;
+
+      const positionX = positions[offset];
+      const positionY = positions[offset + 1];
+      const positionZ = positions[offset + 2];
+
+      const fromStartX = positionX - startX;
+      const fromStartY = positionY - startY;
+      const fromStartZ = positionZ - startZ;
+
+      const projection =
+        segmentLengthSquared > EPSILON
+          ? Math.max(
+              0,
+              Math.min(
+                1,
+                (fromStartX * segmentX +
+                  fromStartY * segmentY +
+                  fromStartZ * segmentZ) /
+                  segmentLengthSquared,
+              ),
+            )
+          : 0;
+
+      const closestX = startX + segmentX * projection;
+      const closestY = startY + segmentY * projection;
+      const closestZ = startZ + segmentZ * projection;
+
+      const deltaX = positionX - closestX;
+      const deltaY = positionY - closestY;
+      const deltaZ = positionZ - closestZ;
+
+      const distanceSquared =
+        deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ;
+
+      if (distanceSquared >= contactRadiusSquared) {
+        continue;
+      }
+
+      let normalX: number;
+      let normalY: number;
+      let normalZ: number;
+
+      if (distanceSquared < EPSILON) {
+        normalX = fallbackNormalX;
+        normalY = 0;
+        normalZ = 0;
+      } else {
+        const inverseDistance = 1 / Math.sqrt(distanceSquared);
+
+        normalX = deltaX * inverseDistance;
+        normalY = deltaY * inverseDistance;
+        normalZ = deltaZ * inverseDistance;
+      }
+
+      const correctedX = closestX + normalX * contactRadius;
+      const correctedY = closestY + normalY * contactRadius;
+      const correctedZ = closestZ + normalZ * contactRadius;
+
+      const correctionX = correctedX - positionX;
+      const correctionY = correctedY - positionY;
+      const correctionZ = correctedZ - positionZ;
+
+      positions[offset] = correctedX;
+      positions[offset + 1] = correctedY;
+      positions[offset + 2] = correctedZ;
+
+      previousPositions[offset] += correctionX;
+      previousPositions[offset + 1] += correctionY;
+      previousPositions[offset + 2] += correctionZ;
+    }
+  }
+}
+
 function solveFloorCollision(
   positions: Float32Array,
   previousPositions: Float32Array,
@@ -209,6 +323,7 @@ export function createFabricSimulation(
 
   const colliders = options.colliders ?? [];
   const floor = options.floor;
+  const capsuleColliders = options.capsuleColliders ?? [];
 
   const positions = compiledFabric.restPositions.slice();
   const previousPositions = compiledFabric.restPositions.slice();
@@ -307,6 +422,13 @@ export function createFabricSimulation(
         previousPositions,
         inverseMasses,
         colliders,
+      );
+
+      solveCapsuleCollisions(
+        positions,
+        previousPositions,
+        inverseMasses,
+        capsuleColliders,
       );
 
       if (floor) {

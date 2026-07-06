@@ -1,9 +1,13 @@
 import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
-import type { EllipsoidCollider, FloorCollider } from "../lib/fabricColliders";
+import type {
+  CapsuleCollider,
+  EllipsoidCollider,
+  FloorCollider,
+} from "../lib/fabricColliders";
 
-import { createFabricSimulation } from "../lib/createFabricSimulation";
+import { createFabricSimulation, EPSILON } from "../lib/createFabricSimulation";
 import type {
   CompiledFabricGarment,
   FabricPanelTopology,
@@ -15,6 +19,7 @@ type FabricGarmentPreviewProps = {
   onSelectPiece?: (pieceId: string) => void;
   colliders: EllipsoidCollider[];
   floor: FloorCollider;
+  capsuleColliders: CapsuleCollider[];
 };
 
 type FabricPanelMeshProps = {
@@ -166,12 +171,57 @@ function ColliderDebug({ colliders }: { colliders: EllipsoidCollider[] }) {
   );
 }
 
+function CapsuleColliderDebug({ colliders }: { colliders: CapsuleCollider[] }) {
+  return (
+    <>
+      {colliders.map((collider) => {
+        const start = new THREE.Vector3(...collider.start);
+        const end = new THREE.Vector3(...collider.end);
+
+        const direction = end.clone().sub(start);
+        const segmentLength = direction.length();
+
+        const centre = start.clone().add(end).multiplyScalar(0.5);
+
+        const rotation =
+          segmentLength > EPSILON
+            ? new THREE.Quaternion().setFromUnitVectors(
+                new THREE.Vector3(0, 1, 0),
+                direction.normalize(),
+              )
+            : new THREE.Quaternion();
+
+        return (
+          <mesh key={collider.id} position={centre} quaternion={rotation}>
+            <capsuleGeometry
+              args={[
+                collider.radius + collider.clearance,
+                segmentLength,
+                8,
+                16,
+              ]}
+            />
+            <meshBasicMaterial
+              color="#a855f7"
+              wireframe
+              transparent
+              opacity={0.28}
+              depthWrite={false}
+            />
+          </mesh>
+        );
+      })}
+    </>
+  );
+}
+
 export function FabricGarmentPreview({
   compiledFabric,
   selectedPieceId,
   onSelectPiece,
   colliders,
   floor,
+  capsuleColliders,
 }: FabricGarmentPreviewProps) {
   const simulation = useMemo(
     () =>
@@ -181,8 +231,9 @@ export function FabricGarmentPreview({
         gravityY: -1.5,
         colliders,
         floor,
+        capsuleColliders,
       }),
-    [compiledFabric, colliders, floor],
+    [compiledFabric, colliders, floor, capsuleColliders],
   );
 
   const accumulatedTimeRef = useRef(0);
@@ -213,6 +264,8 @@ export function FabricGarmentPreview({
   return (
     <>
       <ColliderDebug colliders={colliders} />
+
+      <CapsuleColliderDebug colliders={capsuleColliders} />
 
       {compiledFabric.panels.map((panel) => (
         <FabricPanelMesh

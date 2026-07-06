@@ -29,7 +29,9 @@ import { FabricGarmentPreview } from "./FabricGarmentPreview";
 
 import {
   DEFAULT_FLOOR_COLLIDER,
-  DEFAULT_TORSO_COLLIDERS,
+  DEFAULT_ARM_CAPSULES,
+  DEFAULT_BODY_ELLIPSOIDS,
+  type CapsuleCollider,
   type EllipsoidCollider,
   type FloorCollider,
 } from "../lib/fabricColliders";
@@ -541,6 +543,7 @@ function GarmentPreview({
   simulationRevision,
   colliders,
   floor,
+  capsuleColliders,
 }: {
   pieces: PatternPiece[];
   selectedPieceId?: string | null;
@@ -557,6 +560,7 @@ function GarmentPreview({
   simulationRevision: number;
   colliders: EllipsoidCollider[];
   floor: FloorCollider;
+  capsuleColliders: CapsuleCollider[];
 }) {
   const objectsByPieceIdRef = useRef(new Map<string, THREE.Group>());
 
@@ -656,6 +660,7 @@ function GarmentPreview({
           key={simulationRevision}
           colliders={colliders}
           floor={floor}
+          capsuleColliders={capsuleColliders}
         />
       ) : (
         drawablePieces.map((piece, index) => (
@@ -743,7 +748,9 @@ export function ThreePreview({
   const [simulationEnabled, setSimulationEnabled] = useState(false);
   const [simulationRevision, setSimulationRevision] = useState(0);
 
-  const fabricColliders = useMemo(() => DEFAULT_TORSO_COLLIDERS, []);
+  const fabricColliders = useMemo(() => DEFAULT_BODY_ELLIPSOIDS, []);
+
+  const armCapsuleColliders = useMemo(() => DEFAULT_ARM_CAPSULES, []);
   const floorCollider = useMemo(() => DEFAULT_FLOOR_COLLIDER, []);
 
   const canSimulate = true;
@@ -813,8 +820,6 @@ export function ThreePreview({
 
           <directionalLight castShadow intensity={3} position={[3, 5, 4]} />
 
-          <PreviewFloor floor={floorCollider} />
-
           <AvatarModel
             onClearSelection={onClearSelection}
             modelUrl={modelUrl}
@@ -833,6 +838,7 @@ export function ThreePreview({
             simulationRevision={simulationRevision}
             colliders={fabricColliders}
             floor={floorCollider}
+            capsuleColliders={armCapsuleColliders}
           />
         </Suspense>
 
