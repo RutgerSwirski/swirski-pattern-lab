@@ -41,7 +41,7 @@ export type FabricPanelTopology = {
    */
   edgeParticleIdsByKey: Record<string, number[]>;
 
-  isPinned: boolean;
+  boundaryParticleIds: number[];
 };
 
 export type DistanceConstraint = {
@@ -478,10 +478,16 @@ function buildPanelMesh({
     });
   }
 
+  const boundaryParticleIds = Array.from(
+    { length: contour.length },
+    (_, localParticleId) => particleStart + localParticleId,
+  );
+
   return {
     vertices,
     indices: new Uint32Array(triangleIndices),
     edgeParticleIdsByKey,
+    boundaryParticleIds,
   };
 }
 
@@ -494,6 +500,93 @@ function getDistance(positions: number[], a: number, b: number) {
   const dz = positions[bOffset + 2] - positions[aOffset + 2];
 
   return Math.sqrt(dx * dx + dy * dy + dz * dz);
+}
+
+const ANCHOR_TOP_BAND_METRES = 0.09;
+
+function getParticleY(positions: number[] | Float32Array, particleId: number) {
+  return positions[particleId * 3 + 1];
+}
+
+function getHorizontalDistanceSquared(
+  positions: number[] | Float32Array,
+  firstParticleId: number,
+  secondParticleId: number,
+) {
+  const firstOffset = firstParticleId * 3;
+  const secondOffset = secondParticleId * 3;
+
+  const deltaX = positions[firstOffset] - positions[secondOffset];
+
+  const deltaZ = positions[firstOffset + 2] - positions[secondOffset + 2];
+
+  return deltaX * deltaX + deltaZ * deltaZ;
+}
+
+/*
+ * Picks two high boundary particles on the root panel.
+ *
+ * They act like simple shoulder / neckline attachment points:
+ * enough to hold the garment up, but not enough to freeze
+ * the complete panel.
+ */
+function getRootAnchorParticleIds(
+  panel: FabricPanelTopology,
+  restPositions: number[] | Float32Array,
+) {
+  const boundaryParticleIds = [...new Set(panel.boundaryParticleIds)];
+
+  if (boundaryParticleIds.length <= 2) {
+    return boundaryParticleIds;
+  }
+
+  const sortedByHeight = [...boundaryParticleIds].sort(
+    (firstParticleId, secondParticleId) =>
+      getParticleY(restPositions, secondParticleId) -
+      getParticleY(restPositions, firstParticleId),
+  );
+
+  const firstAnchorId = sortedByHeight[0];
+  const firstAnchorY = getParticleY(restPositions, firstAnchorId);
+
+  let secondAnchorId: number | null = null;
+  let greatestHorizontalDistance = -1;
+
+  for (const candidateParticleId of sortedByHeight) {
+    if (candidateParticleId === firstAnchorId) {
+      continue;
+    }
+
+    const candidateY = getParticleY(restPositions, candidateParticleId);
+
+    /*
+     * Prefer another point close to the top of the panel.
+     * This keeps anchors around shoulders / neckline rather
+     * than grabbing a point near the waist.
+     */
+    if (candidateY < firstAnchorY - ANCHOR_TOP_BAND_METRES) {
+      continue;
+    }
+
+    const horizontalDistance = getHorizontalDistanceSquared(
+      restPositions,
+      firstAnchorId,
+      candidateParticleId,
+    );
+
+    if (horizontalDistance > greatestHorizontalDistance) {
+      greatestHorizontalDistance = horizontalDistance;
+      secondAnchorId = candidateParticleId;
+    }
+  }
+
+  /*
+   * Narrow or asymmetric panels may have only one point in
+   * the top band, so fall back to the second-highest point.
+   */
+  return secondAnchorId === null
+    ? [firstAnchorId, sortedByHeight[1]]
+    : [firstAnchorId, secondAnchorId];
 }
 
 export function compileFabricGarment(
@@ -512,7 +605,6 @@ export function compileFabricGarment(
 
   const panels: FabricPanelTopology[] = [];
   const restPositionValues: number[] = [];
-  const pinnedParticleIds: number[] = [];
 
   let nextParticleId = 0;
 
@@ -548,22 +640,26 @@ export function compileFabricGarment(
       particleCount: panelMesh.vertices.length,
       indices: panelMesh.indices,
       edgeParticleIdsByKey: panelMesh.edgeParticleIdsByKey,
-      isPinned: rootPieceIds.has(piece.id),
+      boundaryParticleIds: panelMesh.boundaryParticleIds,
     };
 
     panels.push(panel);
-
-    if (panel.isPinned) {
-      for (let index = 0; index < panel.particleCount; index += 1) {
-        pinnedParticleIds.push(panel.particleStart + index);
-      }
-    }
 
     nextParticleId += panel.particleCount;
   }
 
   const distanceConstraints: DistanceConstraint[] = [];
   const distanceConstraintKeys = new Set<string>();
+
+  const pinnedParticleIds = [
+    ...new Set(
+      panels
+        .filter((panel) => rootPieceIds.has(panel.pieceId))
+        .flatMap((panel) =>
+          getRootAnchorParticleIds(panel, restPositionValues),
+        ),
+    ),
+  ];
 
   for (const panel of panels) {
     for (let index = 0; index < panel.indices.length; index += 3) {
