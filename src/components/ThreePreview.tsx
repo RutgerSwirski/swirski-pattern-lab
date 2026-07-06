@@ -29,7 +29,7 @@ import { FabricGarmentPreview } from "./FabricGarmentPreview";
 
 import {
   DEFAULT_TORSO_COLLIDERS,
-  type EllipsoidCollider
+  type EllipsoidCollider,
 } from "../lib/fabricColliders";
 
 import {
@@ -638,7 +638,7 @@ function GarmentPreview({
    * Single hinge seams still use your clean static preview.
    * Closed loops activate PBD relaxation.
    */
-  const canSimulate = seams.length > 0;
+  const canSimulate = true;
 
   const shouldUseFabricSimulation = simulationEnabled && canSimulate;
 
@@ -723,7 +723,7 @@ export function ThreePreview({
 
   const fabricColliders = useMemo(() => DEFAULT_TORSO_COLLIDERS, []);
 
-  const canSimulate = seams.length > 0;
+  const canSimulate = true;
 
   const handleSelectedObjectChange = useCallback(
     (object: THREE.Group | null) => {

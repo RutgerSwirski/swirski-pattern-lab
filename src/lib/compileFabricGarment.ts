@@ -651,15 +651,17 @@ export function compileFabricGarment(
   const distanceConstraints: DistanceConstraint[] = [];
   const distanceConstraintKeys = new Set<string>();
 
-  const pinnedParticleIds = [
-    ...new Set(
-      panels
-        .filter((panel) => rootPieceIds.has(panel.pieceId))
-        .flatMap((panel) =>
-          getRootAnchorParticleIds(panel, restPositionValues),
-        ),
-    ),
-  ];
+  const pinnedParticleIds = [];
+
+  // const pinnedParticleIds = [
+  //   ...new Set(
+  //     panels
+  //       .filter((panel) => rootPieceIds.has(panel.pieceId))
+  //       .flatMap((panel) =>
+  //         getRootAnchorParticleIds(panel, restPositionValues),
+  //       ),
+  //   ),
+  // ];
 
   for (const panel of panels) {
     for (let index = 0; index < panel.indices.length; index += 3) {
