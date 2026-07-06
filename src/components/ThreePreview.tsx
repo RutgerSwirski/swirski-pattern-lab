@@ -24,6 +24,7 @@ import type {
 } from "../types";
 
 import { compileGarment } from "../lib/compileGarment";
+import { compileFabricGarment } from "../lib/compileFabricGarment";
 
 import {
   compileStitchConstraints,
@@ -596,6 +597,20 @@ function GarmentPreview({
       patternUnitsPerMillimetre,
     );
   }, [drawablePieces, seams, patternUnitsPerMillimetre]);
+
+  const compiledFabric = useMemo(() => {
+    const piecesWithResolvedDefaults = drawablePieces.map((piece, index) => ({
+      ...piece,
+      previewTransform: getPreviewTransform(piece, index),
+    }));
+
+    return compileFabricGarment(
+      piecesWithResolvedDefaults,
+      seams,
+      compiledGarment,
+      patternUnitsPerMillimetre,
+    );
+  }, [compiledGarment, drawablePieces, patternUnitsPerMillimetre, seams]);
 
   const stitchConstraints = useMemo(
     () => compileStitchConstraints(drawablePieces, seams),
