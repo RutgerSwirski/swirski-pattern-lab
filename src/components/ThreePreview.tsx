@@ -530,6 +530,8 @@ function GarmentPreview({
   transformMode,
   onSelectedObjectChange,
   seams,
+  simulationEnabled,
+  simulationRevision,
 }: {
   pieces: PatternPiece[];
   selectedPieceId?: string | null;
@@ -542,6 +544,8 @@ function GarmentPreview({
   transformMode: TransformMode;
   onSelectedObjectChange?: (object: THREE.Group | null) => void;
   seams: PatternSeam[];
+  simulationEnabled: boolean;
+  simulationRevision: number;
 }) {
   const objectsByPieceIdRef = useRef(new Map<string, THREE.Group>());
 
@@ -627,7 +631,9 @@ function GarmentPreview({
    * Single hinge seams still use your clean static preview.
    * Closed loops activate PBD relaxation.
    */
-  const shouldUseFabricSimulation = compiledGarment.cycleSeamIds.length > 0;
+  const canSimulate = seams.length > 0;
+
+  const shouldUseFabricSimulation = simulationEnabled && canSimulate;
 
   return (
     <>
@@ -636,6 +642,7 @@ function GarmentPreview({
           compiledFabric={compiledFabric}
           selectedPieceId={selectedPieceId}
           onSelectPiece={onSelectPiece}
+          key={simulationRevision}
         />
       ) : (
         drawablePieces.map((piece, index) => (
@@ -702,6 +709,11 @@ export function ThreePreview({
     useState<TransformMode>("translate");
 
   const [hasSelectedPanelObject, setHasSelectedPanelObject] = useState(false);
+
+  const [simulationEnabled, setSimulationEnabled] = useState(false);
+  const [simulationRevision, setSimulationRevision] = useState(0);
+
+  const canSimulate = seams.length > 0;
 
   const handleSelectedObjectChange = useCallback(
     (object: THREE.Group | null) => {
@@ -784,6 +796,8 @@ export function ThreePreview({
             transformMode={transformMode}
             onSelectedObjectChange={handleSelectedObjectChange}
             seams={seams}
+            simulationEnabled={simulationEnabled}
+            simulationRevision={simulationRevision}
           />
         </Suspense>
 
@@ -825,6 +839,35 @@ export function ThreePreview({
           </button>
         </div>
       )}
+
+      <div
+        className="simulation-toolbar"
+        role="toolbar"
+        aria-label="Fabric simulation controls"
+      >
+        <span className="simulation-toolbar__name">Fabric simulation</span>
+
+        <button
+          className={simulationEnabled ? "active" : ""}
+          type="button"
+          disabled={!canSimulate}
+          onClick={() => {
+            setSimulationEnabled((currentValue) => !currentValue);
+          }}
+        >
+          {simulationEnabled ? "Stop" : "Simulate"}
+        </button>
+
+        <button
+          type="button"
+          disabled={!simulationEnabled || !canSimulate}
+          onClick={() => {
+            setSimulationRevision((currentRevision) => currentRevision + 1);
+          }}
+        >
+          Reset
+        </button>
+      </div>
     </div>
   );
 }

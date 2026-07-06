@@ -354,3 +354,23 @@ canvas {
   border-color: #4c8df5;
   background: #2563eb;
 }
+
+.simulation-toolbar {
+  position: absolute;
+  z-index: 20;
+  right: 16px;
+  bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid #d0d0d0;
+  border-radius: 8px;
+  box-shadow: 0 14px 34px rgba(20, 20, 20, 0.12);
+}
+
+.simulation-toolbar__name {
+  font-size: 12px;
+  font-weight: 600;
+}
