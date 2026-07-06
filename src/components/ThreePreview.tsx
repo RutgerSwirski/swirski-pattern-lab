@@ -23,9 +23,14 @@ import type {
   PreviewTransform,
 } from "../types";
 
-import { compileGarment } from "../lib/compileGarment";
 import { compileFabricGarment } from "../lib/compileFabricGarment";
+import { compileGarment } from "../lib/compileGarment";
 import { FabricGarmentPreview } from "./FabricGarmentPreview";
+
+import {
+  DEFAULT_TORSO_COLLIDERS,
+  type EllipsoidCollider
+} from "../lib/fabricColliders";
 
 import {
   getPatternEdgePoint,
@@ -532,6 +537,7 @@ function GarmentPreview({
   seams,
   simulationEnabled,
   simulationRevision,
+  colliders,
 }: {
   pieces: PatternPiece[];
   selectedPieceId?: string | null;
@@ -546,6 +552,7 @@ function GarmentPreview({
   seams: PatternSeam[];
   simulationEnabled: boolean;
   simulationRevision: number;
+  colliders: EllipsoidCollider[];
 }) {
   const objectsByPieceIdRef = useRef(new Map<string, THREE.Group>());
 
@@ -643,6 +650,7 @@ function GarmentPreview({
           selectedPieceId={selectedPieceId}
           onSelectPiece={onSelectPiece}
           key={simulationRevision}
+          colliders={colliders}
         />
       ) : (
         drawablePieces.map((piece, index) => (
@@ -712,6 +720,8 @@ export function ThreePreview({
 
   const [simulationEnabled, setSimulationEnabled] = useState(false);
   const [simulationRevision, setSimulationRevision] = useState(0);
+
+  const fabricColliders = useMemo(() => DEFAULT_TORSO_COLLIDERS, []);
 
   const canSimulate = seams.length > 0;
 
@@ -798,6 +808,7 @@ export function ThreePreview({
             seams={seams}
             simulationEnabled={simulationEnabled}
             simulationRevision={simulationRevision}
+            colliders={fabricColliders}
           />
         </Suspense>
 

@@ -4,12 +4,15 @@ import type {
   FabricStitchConstraint,
 } from "./compileFabricGarment";
 
+import type { EllipsoidCollider } from "./fabricColliders";
+
 const EPSILON = 0.000001;
 
 type FabricSimulationOptions = {
   iterations?: number;
   damping?: number;
   gravityY?: number;
+  colliders?: EllipsoidCollider[];
 };
 
 export type FabricSimulation = {
@@ -17,20 +20,6 @@ export type FabricSimulation = {
   reset: () => void;
   step: (deltaSeconds: number) => void;
 };
-
-function setParticlePosition(
-  positions: Float32Array,
-  particleId: number,
-  x: number,
-  y: number,
-  z: number,
-) {
-  const offset = particleId * 3;
-
-  positions[offset] = x;
-  positions[offset + 1] = y;
-  positions[offset + 2] = z;
-}
 
 function copyParticlePosition(
   source: Float32Array,
@@ -91,6 +80,89 @@ function solveDistanceConstraint(
   }
 }
 
+function solveEllipsoidCollisions(
+  positions: Float32Array,
+  previousPositions: Float32Array,
+  inverseMasses: Float32Array,
+  colliders: EllipsoidCollider[],
+) {
+  for (const collider of colliders) {
+    const [centreX, centreY, centreZ] = collider.centre;
+
+    const radiusX = collider.radii[0] + collider.clearance;
+    const radiusY = collider.radii[1] + collider.clearance;
+    const radiusZ = collider.radii[2] + collider.clearance;
+
+    for (
+      let particleId = 0;
+      particleId < inverseMasses.length;
+      particleId += 1
+    ) {
+      if (inverseMasses[particleId] === 0) {
+        continue;
+      }
+
+      const offset = particleId * 3;
+
+      const positionX = positions[offset];
+      const positionY = positions[offset + 1];
+      const positionZ = positions[offset + 2];
+
+      const scaledX = (positionX - centreX) / radiusX;
+      const scaledY = (positionY - centreY) / radiusY;
+      const scaledZ = (positionZ - centreZ) / radiusZ;
+
+      const scaledDistance = Math.sqrt(
+        scaledX * scaledX + scaledY * scaledY + scaledZ * scaledZ,
+      );
+
+      /*
+       * Outside the expanded torso ellipsoid: no collision.
+       */
+      if (scaledDistance >= 1) {
+        continue;
+      }
+
+      /*
+       * Very rare fallback: particle exactly in the collider centre.
+       */
+      if (scaledDistance < EPSILON) {
+        const correctionZ = radiusZ;
+
+        positions[offset + 2] = centreZ + correctionZ;
+        previousPositions[offset + 2] = centreZ + correctionZ;
+
+        continue;
+      }
+
+      /*
+       * Push particle outward onto the ellipsoid surface.
+       */
+      const scale = 1 / scaledDistance;
+
+      const correctedX = centreX + scaledX * scale * radiusX;
+      const correctedY = centreY + scaledY * scale * radiusY;
+      const correctedZ = centreZ + scaledZ * scale * radiusZ;
+
+      const correctionX = correctedX - positionX;
+      const correctionY = correctedY - positionY;
+      const correctionZ = correctedZ - positionZ;
+
+      positions[offset] = correctedX;
+      positions[offset + 1] = correctedY;
+      positions[offset + 2] = correctedZ;
+
+      /*
+       * Move previous position by the same amount.
+       * This avoids the collider accidentally injecting a huge velocity.
+       */
+      previousPositions[offset] += correctionX;
+      previousPositions[offset + 1] += correctionY;
+      previousPositions[offset + 2] += correctionZ;
+    }
+  }
+}
+
 export function createFabricSimulation(
   compiledFabric: CompiledFabricGarment,
   options: FabricSimulationOptions = {},
@@ -103,6 +175,8 @@ export function createFabricSimulation(
    * Later we add real gravity after body collision exists.
    */
   const gravityY = options.gravityY ?? 0;
+
+  const colliders = options.colliders ?? [];
 
   const positions = compiledFabric.restPositions.slice();
   const previousPositions = compiledFabric.restPositions.slice();
@@ -143,6 +217,7 @@ export function createFabricSimulation(
      * On the first version gravity is zero, but this keeps
      * the solver ready for drape later.
      */
+
     for (let particleId = 0; particleId < particleCount; particleId += 1) {
       if (inverseMasses[particleId] === 0) {
         continue;
@@ -168,7 +243,11 @@ export function createFabricSimulation(
       positions[offset + 2] += velocityZ;
     }
 
-    for (let iteration = 0; iteration < iterations; iteration += 1) {
+    for (
+      let solverIteration = 0;
+      solverIteration < iterations;
+      solverIteration += 1
+    ) {
       for (const constraint of compiledFabric.distanceConstraints) {
         solveDistanceConstraint(
           positions,
@@ -182,11 +261,16 @@ export function createFabricSimulation(
         solveDistanceConstraint(positions, inverseMasses, constraint, 0);
       }
 
+      solveEllipsoidCollisions(
+        positions,
+        previousPositions,
+        inverseMasses,
+        colliders,
+      );
+
       applyPinnedParticles();
     }
   }
-
-  setParticlePosition(positions, 0, positions[0], positions[1], positions[2]);
 
   return {
     positions,

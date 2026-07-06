@@ -1,6 +1,7 @@
 import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
+import type { EllipsoidCollider } from "../lib/fabricColliders";
 
 import { createFabricSimulation } from "../lib/createFabricSimulation";
 import type {
@@ -12,6 +13,7 @@ type FabricGarmentPreviewProps = {
   compiledFabric: CompiledFabricGarment;
   selectedPieceId?: string | null;
   onSelectPiece?: (pieceId: string) => void;
+  colliders: EllipsoidCollider[];
 };
 
 type FabricPanelMeshProps = {
@@ -20,6 +22,10 @@ type FabricPanelMeshProps = {
   isSelected: boolean;
   onSelectPiece?: (pieceId: string) => void;
 };
+
+const FIXED_DELTA_SECONDS = 1 / 60;
+const MAX_SUBSTEPS = 4;
+const MAX_ACCUMULATED_TIME = FIXED_DELTA_SECONDS * MAX_SUBSTEPS;
 
 function FabricPanelMesh({
   panel,
@@ -130,27 +136,81 @@ function FabricPanelMesh({
   );
 }
 
+function ColliderDebug({ colliders }: { colliders: EllipsoidCollider[] }) {
+  return (
+    <>
+      {colliders.map((collider) => {
+        const radiusX = collider.radii[0] + collider.clearance;
+        const radiusY = collider.radii[1] + collider.clearance;
+        const radiusZ = collider.radii[2] + collider.clearance;
+
+        return (
+          <mesh
+            key={collider.id}
+            position={collider.centre}
+            scale={[radiusX, radiusY, radiusZ]}
+          >
+            <sphereGeometry args={[1, 24, 16]} />
+            <meshBasicMaterial
+              color="#22c55e"
+              wireframe
+              transparent
+              opacity={0.35}
+              depthWrite={false}
+            />
+          </mesh>
+        );
+      })}
+    </>
+  );
+}
+
 export function FabricGarmentPreview({
   compiledFabric,
   selectedPieceId,
   onSelectPiece,
+  colliders,
 }: FabricGarmentPreviewProps) {
   const simulation = useMemo(
     () =>
       createFabricSimulation(compiledFabric, {
         iterations: 14,
         damping: 0.996,
-        gravityY: 0,
+        gravityY: -1.5,
+        colliders,
       }),
-    [compiledFabric],
+    [compiledFabric, colliders],
   );
 
+  const accumulatedTimeRef = useRef(0);
+
+  useEffect(() => {
+    accumulatedTimeRef.current = 0;
+  }, [simulation]);
+
   useFrame((_, delta) => {
-    simulation.step(delta);
+    accumulatedTimeRef.current = Math.min(
+      accumulatedTimeRef.current + delta,
+      MAX_ACCUMULATED_TIME,
+    );
+
+    let steps = 0;
+
+    while (
+      accumulatedTimeRef.current >= FIXED_DELTA_SECONDS &&
+      steps < MAX_SUBSTEPS
+    ) {
+      simulation.step(FIXED_DELTA_SECONDS);
+
+      accumulatedTimeRef.current -= FIXED_DELTA_SECONDS;
+      steps += 1;
+    }
   });
 
   return (
     <>
+      <ColliderDebug colliders={colliders} />
+
       {compiledFabric.panels.map((panel) => (
         <FabricPanelMesh
           key={panel.pieceId}
