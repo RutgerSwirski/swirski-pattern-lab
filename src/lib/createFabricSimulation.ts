@@ -1,4 +1,5 @@
 import type {
+  BendConstraint,
   CompiledFabricGarment,
   DistanceConstraint,
   FabricStitchConstraint,
@@ -37,7 +38,7 @@ function copyParticlePosition(
 function solveDistanceConstraint(
   positions: Float32Array,
   inverseMasses: Float32Array,
-  constraint: DistanceConstraint | FabricStitchConstraint,
+  constraint: DistanceConstraint | BendConstraint | FabricStitchConstraint,
   restLength: number,
 ) {
   const aOffset = constraint.a * 3;
@@ -280,6 +281,15 @@ export function createFabricSimulation(
       solverIteration += 1
     ) {
       for (const constraint of compiledFabric.distanceConstraints) {
+        solveDistanceConstraint(
+          positions,
+          inverseMasses,
+          constraint,
+          constraint.restLength,
+        );
+      }
+
+      for (const constraint of compiledFabric.bendConstraints) {
         solveDistanceConstraint(
           positions,
           inverseMasses,

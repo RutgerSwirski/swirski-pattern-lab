@@ -25,6 +25,8 @@ const INTERIOR_PARTICLE_SPACING_METRES =
 
 const INTERIOR_BOUNDARY_CLEARANCE = INTERIOR_PARTICLE_SPACING_METRES * 0.22;
 
+const DEFAULT_BEND_STIFFNESS = 0.05;
+
 export type FabricPanelTopology = {
   pieceId: string;
   particleStart: number;
@@ -45,6 +47,13 @@ export type FabricPanelTopology = {
 };
 
 export type DistanceConstraint = {
+  a: number;
+  b: number;
+  restLength: number;
+  stiffness: number;
+};
+
+export type BendConstraint = {
   a: number;
   b: number;
   restLength: number;
@@ -81,6 +90,8 @@ export type CompiledFabricGarment = {
    * panel in place while connected panels relax around it.
    */
   pinnedParticleIds: number[];
+
+  bendConstraints: BendConstraint[];
 };
 
 type BoundaryEdgeRecord = {
@@ -589,6 +600,14 @@ function getRootAnchorParticleIds(
     : [firstAnchorId, secondAnchorId];
 }
 
+type SharedEdgeRecord = {
+  oppositeParticleId: number;
+};
+
+function getConstraintEdgeKey(a: number, b: number) {
+  return a < b ? `${a}:${b}` : `${b}:${a}`;
+}
+
 export function compileFabricGarment(
   pieces: PatternPiece[],
   seams: PatternSeam[],
@@ -651,17 +670,20 @@ export function compileFabricGarment(
   const distanceConstraints: DistanceConstraint[] = [];
   const distanceConstraintKeys = new Set<string>();
 
-  const pinnedParticleIds = [];
+  const bendConstraints: BendConstraint[] = [];
+  const sharedEdges = new Map<string, SharedEdgeRecord>();
 
-  // const pinnedParticleIds = [
-  //   ...new Set(
-  //     panels
-  //       .filter((panel) => rootPieceIds.has(panel.pieceId))
-  //       .flatMap((panel) =>
-  //         getRootAnchorParticleIds(panel, restPositionValues),
-  //       ),
-  //   ),
-  // ];
+  // const pinnedParticleIds = [];
+
+  const pinnedParticleIds = [
+    ...new Set(
+      panels
+        .filter((panel) => rootPieceIds.has(panel.pieceId))
+        .flatMap((panel) =>
+          getRootAnchorParticleIds(panel, restPositionValues),
+        ),
+    ),
+  ];
 
   for (const panel of panels) {
     for (let index = 0; index < panel.indices.length; index += 3) {
@@ -691,6 +713,59 @@ export function compileFabricGarment(
           b,
           restLength: getDistance(restPositionValues, a, b),
           stiffness: 1,
+        });
+      }
+
+      const triangleEdgesWithOpposite = [
+        {
+          edgeA: triangle[0],
+          edgeB: triangle[1],
+          oppositeParticleId: triangle[2],
+        },
+        {
+          edgeA: triangle[1],
+          edgeB: triangle[2],
+          oppositeParticleId: triangle[0],
+        },
+        {
+          edgeA: triangle[2],
+          edgeB: triangle[0],
+          oppositeParticleId: triangle[1],
+        },
+      ];
+
+      for (const edge of triangleEdgesWithOpposite) {
+        const sharedEdgeKey = getConstraintEdgeKey(edge.edgeA, edge.edgeB);
+
+        const previousTriangle = sharedEdges.get(sharedEdgeKey);
+
+        if (!previousTriangle) {
+          sharedEdges.set(sharedEdgeKey, {
+            oppositeParticleId: edge.oppositeParticleId,
+          });
+
+          continue;
+        }
+
+        const firstOppositeParticleId = previousTriangle.oppositeParticleId;
+        const secondOppositeParticleId = edge.oppositeParticleId;
+
+        /*
+         * Same triangle / malformed topology guard.
+         */
+        if (firstOppositeParticleId === secondOppositeParticleId) {
+          continue;
+        }
+
+        bendConstraints.push({
+          a: firstOppositeParticleId,
+          b: secondOppositeParticleId,
+          restLength: getDistance(
+            restPositionValues,
+            firstOppositeParticleId,
+            secondOppositeParticleId,
+          ),
+          stiffness: DEFAULT_BEND_STIFFNESS,
         });
       }
     }
@@ -753,6 +828,7 @@ export function compileFabricGarment(
     panels,
     restPositions: new Float32Array(restPositionValues),
     distanceConstraints,
+    bendConstraints,
     stitchConstraints,
     pinnedParticleIds,
   };
