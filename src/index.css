@@ -374,3 +374,35 @@ canvas {
   font-size: 12px;
   font-weight: 600;
 }
+
+.collider-fit-toolbar {
+  position: absolute;
+  z-index: 20;
+  left: 16px;
+  bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(560px, calc(100% - 32px));
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid #d0d0d0;
+  border-radius: 8px;
+  box-shadow: 0 14px 34px rgba(20, 20, 20, 0.12);
+}
+
+.collider-fit-toolbar__hint {
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.collider-fit-toolbar__radius {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.collider-fit-toolbar__radius input {
+  width: 110px;
+}

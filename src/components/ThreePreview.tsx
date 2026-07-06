@@ -44,6 +44,29 @@ import {
 
 type TransformMode = "translate" | "rotate";
 
+type CapsuleEndpoint = "start" | "end";
+
+type SelectedCapsuleHandle = {
+  colliderId: string;
+  endpoint: CapsuleEndpoint;
+} | null;
+
+type Vector3Tuple = [number, number, number];
+
+function cloneCapsuleColliders(
+  colliders: readonly CapsuleCollider[],
+): CapsuleCollider[] {
+  return colliders.map((collider) => ({
+    ...collider,
+    start: [...collider.start] as Vector3Tuple,
+    end: [...collider.end] as Vector3Tuple,
+  }));
+}
+
+function toVector3Tuple(vector: THREE.Vector3): Vector3Tuple {
+  return [vector.x, vector.y, vector.z];
+}
+
 const METRES_PER_MILLIMETRE = 0.001;
 
 type ThreePreviewProps = {
@@ -530,6 +553,182 @@ function StitchConstraintDebug({
   );
 }
 
+function CapsuleEndpointHandle({
+  position,
+  endpoint,
+  selected,
+  onSelect,
+  onPositionChange,
+}: {
+  position: Vector3Tuple;
+  endpoint: CapsuleEndpoint;
+  selected: boolean;
+  onSelect: () => void;
+  onPositionChange: (position: Vector3Tuple) => void;
+}) {
+  const [handleObject, setHandleObject] = useState<THREE.Mesh | null>(null);
+
+  const handleObjectChange = useCallback(() => {
+    if (!handleObject) {
+      return;
+    }
+
+    onPositionChange(toVector3Tuple(handleObject.position));
+  }, [handleObject, onPositionChange]);
+
+  return (
+    <>
+      <mesh
+        ref={setHandleObject}
+        position={position}
+        renderOrder={5}
+        onClick={(event) => {
+          event.stopPropagation();
+          onSelect();
+        }}
+      >
+        <sphereGeometry args={[0.032, 16, 12]} />
+        <meshBasicMaterial
+          color={endpoint === "start" ? "#22c55e" : "#f59e0b"}
+          depthTest={false}
+        />
+      </mesh>
+
+      {selected && handleObject && (
+        <TransformControls
+          object={handleObject}
+          mode="translate"
+          space="world"
+          size={0.55}
+          translationSnap={0.01}
+          onObjectChange={handleObjectChange}
+        />
+      )}
+    </>
+  );
+}
+
+function CapsuleColliderFitVisual({
+  collider,
+  selectedHandle,
+  onSelectHandle,
+  onUpdateEndpoint,
+}: {
+  collider: CapsuleCollider;
+  selectedHandle: SelectedCapsuleHandle;
+  onSelectHandle: (handle: SelectedCapsuleHandle) => void;
+  onUpdateEndpoint: (endpoint: CapsuleEndpoint, position: Vector3Tuple) => void;
+}) {
+  const start = new THREE.Vector3(...collider.start);
+  const end = new THREE.Vector3(...collider.end);
+
+  const direction = end.clone().sub(start);
+  const segmentLength = direction.length();
+
+  const centre = start.clone().add(end).multiplyScalar(0.5);
+
+  const quaternion = new THREE.Quaternion();
+
+  if (segmentLength > 0.000001) {
+    quaternion.setFromUnitVectors(
+      new THREE.Vector3(0, 1, 0),
+      direction.normalize(),
+    );
+  }
+
+  const contactRadius = collider.radius + collider.clearance;
+
+  const isStartSelected =
+    selectedHandle?.colliderId === collider.id &&
+    selectedHandle.endpoint === "start";
+
+  const isEndSelected =
+    selectedHandle?.colliderId === collider.id &&
+    selectedHandle.endpoint === "end";
+
+  return (
+    <>
+      <mesh position={centre} quaternion={quaternion} renderOrder={2}>
+        <capsuleGeometry
+          args={[contactRadius, Math.max(segmentLength, 0.0001), 8, 16]}
+        />
+        <meshBasicMaterial
+          color="#a855f7"
+          wireframe
+          transparent
+          opacity={0.32}
+          depthWrite={false}
+          depthTest={false}
+        />
+      </mesh>
+
+      <CapsuleEndpointHandle
+        endpoint="start"
+        position={collider.start}
+        selected={isStartSelected}
+        onSelect={() =>
+          onSelectHandle({
+            colliderId: collider.id,
+            endpoint: "start",
+          })
+        }
+        onPositionChange={(position) => onUpdateEndpoint("start", position)}
+      />
+
+      <CapsuleEndpointHandle
+        endpoint="end"
+        position={collider.end}
+        selected={isEndSelected}
+        onSelect={() =>
+          onSelectHandle({
+            colliderId: collider.id,
+            endpoint: "end",
+          })
+        }
+        onPositionChange={(position) => onUpdateEndpoint("end", position)}
+      />
+    </>
+  );
+}
+
+function CapsuleColliderFitRig({
+  enabled,
+  colliders,
+  selectedHandle,
+  onSelectHandle,
+  onUpdateEndpoint,
+}: {
+  enabled: boolean;
+  colliders: CapsuleCollider[];
+  selectedHandle: SelectedCapsuleHandle;
+  onSelectHandle: (handle: SelectedCapsuleHandle) => void;
+  onUpdateEndpoint: (
+    colliderId: string,
+    endpoint: CapsuleEndpoint,
+    position: Vector3Tuple,
+  ) => void;
+}) {
+  if (!enabled) {
+    return null;
+  }
+
+  return (
+    <>
+      {colliders.map((collider) => (
+        <CapsuleColliderFitVisual
+          key={collider.id}
+          collider={collider}
+          selectedHandle={selectedHandle}
+          onSelectHandle={onSelectHandle}
+          onUpdateEndpoint={(endpoint, position) =>
+            onUpdateEndpoint(collider.id, endpoint, position)
+          }
+        />
+      ))}
+    </>
+  );
+}
+
 function GarmentPreview({
   pieces,
   selectedPieceId,
@@ -544,6 +743,7 @@ function GarmentPreview({
   colliders,
   floor,
   capsuleColliders,
+  colliderFitMode,
 }: {
   pieces: PatternPiece[];
   selectedPieceId?: string | null;
@@ -561,6 +761,7 @@ function GarmentPreview({
   colliders: EllipsoidCollider[];
   floor: FloorCollider;
   capsuleColliders: CapsuleCollider[];
+  colliderFitMode: boolean;
 }) {
   const objectsByPieceIdRef = useRef(new Map<string, THREE.Group>());
 
@@ -680,7 +881,7 @@ function GarmentPreview({
         ))
       )}
 
-      {!shouldUseFabricSimulation && selectedPieceId && (
+      {!shouldUseFabricSimulation && selectedPieceId && !colliderFitMode && (
         <SelectedPieceTransformGizmo
           pieceId={selectedPieceId}
           object={selectedObject}
@@ -750,8 +951,16 @@ export function ThreePreview({
 
   const fabricColliders = useMemo(() => DEFAULT_BODY_ELLIPSOIDS, []);
 
-  const armCapsuleColliders = useMemo(() => DEFAULT_ARM_CAPSULES, []);
   const floorCollider = useMemo(() => DEFAULT_FLOOR_COLLIDER, []);
+
+  const [armCapsuleColliders, setArmCapsuleColliders] = useState(() =>
+    cloneCapsuleColliders(DEFAULT_ARM_CAPSULES),
+  );
+
+  const [colliderFitMode, setColliderFitMode] = useState(false);
+
+  const [selectedCapsuleHandle, setSelectedCapsuleHandle] =
+    useState<SelectedCapsuleHandle>(null);
 
   const canSimulate = true;
 
@@ -761,6 +970,7 @@ export function ThreePreview({
     },
     [],
   );
+
   const selectedPiece = pieces.find((piece) => piece.id === selectedPieceId);
 
   const handleFlipSelectedPiece = useCallback(() => {
@@ -796,11 +1006,75 @@ export function ThreePreview({
     onUpdatePiecePreviewTransforms(updates);
   }, [onUpdatePiecePreviewTransforms, pieces, selectedPiece]);
 
+  const updateArmCapsuleEndpoint = useCallback(
+    (colliderId: string, endpoint: CapsuleEndpoint, position: Vector3Tuple) => {
+      setArmCapsuleColliders((currentColliders) =>
+        currentColliders.map((collider) => {
+          if (collider.id !== colliderId) {
+            return collider;
+          }
+
+          return endpoint === "start"
+            ? { ...collider, start: position }
+            : { ...collider, end: position };
+        }),
+      );
+    },
+    [],
+  );
+
+  const updateArmCapsuleRadius = useCallback(
+    (colliderId: string, radius: number) => {
+      setArmCapsuleColliders((currentColliders) =>
+        currentColliders.map((collider) =>
+          collider.id === colliderId ? { ...collider, radius } : collider,
+        ),
+      );
+    },
+    [],
+  );
+
+  const toggleColliderFitMode = useCallback(() => {
+    const nextFitMode = !colliderFitMode;
+
+    setColliderFitMode(nextFitMode);
+    setSelectedCapsuleHandle(null);
+
+    /*
+     * Collider edits should not repeatedly recreate the live simulation.
+     */
+    if (nextFitMode) {
+      setSimulationEnabled(false);
+    }
+  }, [colliderFitMode]);
+
+  const logArmCapsuleValues = useCallback(() => {
+    console.info(
+      "DEFAULT_ARM_CAPSULES =",
+      JSON.stringify(armCapsuleColliders, null, 2),
+    );
+  }, [armCapsuleColliders]);
+
+  const selectedCapsule = useMemo(() => {
+    if (!selectedCapsuleHandle) {
+      return null;
+    }
+
+    return (
+      armCapsuleColliders.find(
+        (collider) => collider.id === selectedCapsuleHandle.colliderId,
+      ) ?? null
+    );
+  }, [armCapsuleColliders, selectedCapsuleHandle]);
+
   return (
     <div className="three-preview">
       <Canvas
         shadows
-        onPointerMissed={() => onClearSelection?.()}
+        onPointerMissed={() => {
+          onClearSelection?.();
+          setSelectedCapsuleHandle(null);
+        }}
         camera={{
           position: [0, 1.3, 4],
           fov: 40,
@@ -820,9 +1094,19 @@ export function ThreePreview({
 
           <directionalLight castShadow intensity={3} position={[3, 5, 4]} />
 
+          <PreviewFloor floor={floorCollider} />
+
           <AvatarModel
             onClearSelection={onClearSelection}
             modelUrl={modelUrl}
+          />
+
+          <CapsuleColliderFitRig
+            enabled={colliderFitMode}
+            colliders={armCapsuleColliders}
+            selectedHandle={selectedCapsuleHandle}
+            onSelectHandle={setSelectedCapsuleHandle}
+            onUpdateEndpoint={updateArmCapsuleEndpoint}
           />
 
           <GarmentPreview
@@ -839,6 +1123,7 @@ export function ThreePreview({
             colliders={fabricColliders}
             floor={floorCollider}
             capsuleColliders={armCapsuleColliders}
+            colliderFitMode={colliderFitMode}
           />
         </Suspense>
 
@@ -852,7 +1137,7 @@ export function ThreePreview({
         />
       </Canvas>
 
-      {selectedPiece && hasSelectedPanelObject && (
+      {!colliderFitMode && selectedPiece && hasSelectedPanelObject && (
         <div
           className="three-toolbar"
           role="toolbar"
@@ -891,7 +1176,7 @@ export function ThreePreview({
         <button
           className={simulationEnabled ? "active" : ""}
           type="button"
-          disabled={!canSimulate}
+          disabled={!canSimulate || colliderFitMode}
           onClick={() => {
             setSimulationEnabled((currentValue) => !currentValue);
           }}
@@ -908,6 +1193,66 @@ export function ThreePreview({
         >
           Reset
         </button>
+      </div>
+
+      <div
+        className="collider-fit-toolbar"
+        role="toolbar"
+        aria-label="Arm collider fitting tools"
+      >
+        <button
+          className={colliderFitMode ? "active" : ""}
+          type="button"
+          onClick={toggleColliderFitMode}
+        >
+          {colliderFitMode ? "Finish arm fitting" : "Fit arm colliders"}
+        </button>
+
+        {colliderFitMode && (
+          <>
+            <span className="collider-fit-toolbar__hint">
+              {selectedCapsuleHandle
+                ? `Editing ${selectedCapsuleHandle.colliderId} ${selectedCapsuleHandle.endpoint}`
+                : "Click a green or orange endpoint"}
+            </span>
+
+            <button
+              type="button"
+              onClick={() => {
+                setArmCapsuleColliders(
+                  cloneCapsuleColliders(DEFAULT_ARM_CAPSULES),
+                );
+                setSelectedCapsuleHandle(null);
+              }}
+            >
+              Reset arms
+            </button>
+
+            {selectedCapsule && (
+              <label className="collider-fit-toolbar__radius">
+                Radius
+                <input
+                  type="range"
+                  min="0.025"
+                  max="0.12"
+                  step="0.001"
+                  value={selectedCapsule.radius}
+                  onChange={(event) =>
+                    updateArmCapsuleRadius(
+                      selectedCapsule.id,
+                      Number(event.target.value),
+                    )
+                  }
+                />
+                <output>{selectedCapsule.radius.toFixed(3)} m</output>
+              </label>
+            )}
+
+            <button type="button" onClick={logArmCapsuleValues}>
+              Log values
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
