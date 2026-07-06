@@ -13,6 +13,12 @@ import {
   useRef,
   useState,
 } from "react";
+
+import {
+  extractArmCapsulesFromRig,
+  inspectAvatarRig,
+} from "../lib/extractAvatarColliders";
+
 import * as THREE from "three";
 
 import type {
@@ -148,9 +154,11 @@ function getPreviewTransform(
 function AvatarModel({
   modelUrl,
   onClearSelection,
+  onColliderRigReady,
 }: {
   modelUrl: string;
   onClearSelection?: () => void;
+  onColliderRigReady?: (scene: THREE.Object3D) => void;
 }) {
   const { scene } = useGLTF(modelUrl);
 
@@ -161,7 +169,9 @@ function AvatarModel({
         object.receiveShadow = true;
       }
     });
-  }, [scene]);
+
+    onColliderRigReady?.(scene);
+  }, [scene, onColliderRigReady]);
 
   return (
     <group
@@ -971,6 +981,21 @@ export function ThreePreview({
     [],
   );
 
+  const handleColliderRigReady = useCallback((scene: THREE.Object3D) => {
+    inspectAvatarRig(scene);
+
+    const capsules = extractArmCapsulesFromRig(scene);
+
+    console.log("Extracted arm capsules:", capsules);
+
+    if (capsules.length > 0) {
+      setArmCapsuleColliders(capsules);
+
+      // Temporary: automatically show the fitted result.
+      setColliderFitMode(true);
+    }
+  }, []);
+
   const selectedPiece = pieces.find((piece) => piece.id === selectedPieceId);
 
   const handleFlipSelectedPiece = useCallback(() => {
@@ -1099,6 +1124,7 @@ export function ThreePreview({
           <AvatarModel
             onClearSelection={onClearSelection}
             modelUrl={modelUrl}
+            onColliderRigReady={handleColliderRigReady}
           />
 
           <CapsuleColliderFitRig

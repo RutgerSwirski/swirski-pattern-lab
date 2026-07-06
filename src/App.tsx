@@ -289,7 +289,7 @@ function App() {
 
       <aside className="preview-panel">
         <ThreePreview
-          modelUrl="/models/swirski_avatar_static_source_test_1.glb"
+          modelUrl="/models/swirski_avatar_static_source_rigged_1.glb"
           pieces={editor.pieces}
           selectedPieceId={editor.selectedPieceId}
           patternUnitsPerMillimetre={MM_TO_PX}
