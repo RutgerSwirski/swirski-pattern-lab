@@ -19,3 +19,13 @@ export const DEFAULT_TORSO_COLLIDERS: EllipsoidCollider[] = [
     clearance: 0.006,
   },
 ];
+
+export type FloorCollider = {
+  y: number;
+  clearance: number;
+};
+
+export const DEFAULT_FLOOR_COLLIDER: FloorCollider = {
+  y: 0,
+  clearance: 0.005,
+};

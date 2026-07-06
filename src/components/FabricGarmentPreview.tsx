@@ -1,7 +1,7 @@
 import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
-import type { EllipsoidCollider } from "../lib/fabricColliders";
+import type { EllipsoidCollider, FloorCollider } from "../lib/fabricColliders";
 
 import { createFabricSimulation } from "../lib/createFabricSimulation";
 import type {
@@ -14,6 +14,7 @@ type FabricGarmentPreviewProps = {
   selectedPieceId?: string | null;
   onSelectPiece?: (pieceId: string) => void;
   colliders: EllipsoidCollider[];
+  floor: FloorCollider;
 };
 
 type FabricPanelMeshProps = {
@@ -170,6 +171,7 @@ export function FabricGarmentPreview({
   selectedPieceId,
   onSelectPiece,
   colliders,
+  floor,
 }: FabricGarmentPreviewProps) {
   const simulation = useMemo(
     () =>
@@ -178,8 +180,9 @@ export function FabricGarmentPreview({
         damping: 0.996,
         gravityY: -1.5,
         colliders,
+        floor,
       }),
-    [compiledFabric, colliders],
+    [compiledFabric, colliders, floor],
   );
 
   const accumulatedTimeRef = useRef(0);

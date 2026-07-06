@@ -4,7 +4,7 @@ import type {
   FabricStitchConstraint,
 } from "./compileFabricGarment";
 
-import type { EllipsoidCollider } from "./fabricColliders";
+import type { EllipsoidCollider, FloorCollider } from "./fabricColliders";
 
 const EPSILON = 0.000001;
 
@@ -13,6 +13,7 @@ type FabricSimulationOptions = {
   damping?: number;
   gravityY?: number;
   colliders?: EllipsoidCollider[];
+  floor?: FloorCollider;
 };
 
 export type FabricSimulation = {
@@ -163,6 +164,35 @@ function solveEllipsoidCollisions(
   }
 }
 
+function solveFloorCollision(
+  positions: Float32Array,
+  previousPositions: Float32Array,
+  inverseMasses: Float32Array,
+  floor: FloorCollider,
+) {
+  const contactY = floor.y + floor.clearance;
+
+  for (let particleId = 0; particleId < inverseMasses.length; particleId += 1) {
+    if (inverseMasses[particleId] === 0) {
+      continue;
+    }
+
+    const offset = particleId * 3;
+
+    if (positions[offset + 1] >= contactY) {
+      continue;
+    }
+
+    positions[offset + 1] = contactY;
+
+    /*
+     * Stop downward vertical movement on contact.
+     * X/Z are unchanged, so fabric can still slide across the floor.
+     */
+    previousPositions[offset + 1] = contactY;
+  }
+}
+
 export function createFabricSimulation(
   compiledFabric: CompiledFabricGarment,
   options: FabricSimulationOptions = {},
@@ -177,6 +207,7 @@ export function createFabricSimulation(
   const gravityY = options.gravityY ?? 0;
 
   const colliders = options.colliders ?? [];
+  const floor = options.floor;
 
   const positions = compiledFabric.restPositions.slice();
   const previousPositions = compiledFabric.restPositions.slice();
@@ -267,6 +298,10 @@ export function createFabricSimulation(
         inverseMasses,
         colliders,
       );
+
+      if (floor) {
+        solveFloorCollision(positions, previousPositions, inverseMasses, floor);
+      }
 
       applyPinnedParticles();
     }

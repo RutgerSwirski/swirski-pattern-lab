@@ -28,8 +28,10 @@ import { compileGarment } from "../lib/compileGarment";
 import { FabricGarmentPreview } from "./FabricGarmentPreview";
 
 import {
+  DEFAULT_FLOOR_COLLIDER,
   DEFAULT_TORSO_COLLIDERS,
   type EllipsoidCollider,
+  type FloorCollider,
 } from "../lib/fabricColliders";
 
 import {
@@ -538,6 +540,7 @@ function GarmentPreview({
   simulationEnabled,
   simulationRevision,
   colliders,
+  floor,
 }: {
   pieces: PatternPiece[];
   selectedPieceId?: string | null;
@@ -553,6 +556,7 @@ function GarmentPreview({
   simulationEnabled: boolean;
   simulationRevision: number;
   colliders: EllipsoidCollider[];
+  floor: FloorCollider;
 }) {
   const objectsByPieceIdRef = useRef(new Map<string, THREE.Group>());
 
@@ -651,6 +655,7 @@ function GarmentPreview({
           onSelectPiece={onSelectPiece}
           key={simulationRevision}
           colliders={colliders}
+          floor={floor}
         />
       ) : (
         drawablePieces.map((piece, index) => (
@@ -702,6 +707,23 @@ function getSymmetryLinkedPieces(
   });
 }
 
+function PreviewFloor({ floor }: { floor: FloorCollider }) {
+  return (
+    <group>
+      <mesh
+        position={[0, floor.y, 0]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        receiveShadow
+      >
+        <planeGeometry args={[12, 12]} />
+        <shadowMaterial transparent opacity={0.3} />
+      </mesh>
+
+      <gridHelper args={[12, 12]} position={[0, floor.y + 0.001, 0]} />
+    </group>
+  );
+}
+
 export function ThreePreview({
   modelUrl,
   pieces,
@@ -722,6 +744,7 @@ export function ThreePreview({
   const [simulationRevision, setSimulationRevision] = useState(0);
 
   const fabricColliders = useMemo(() => DEFAULT_TORSO_COLLIDERS, []);
+  const floorCollider = useMemo(() => DEFAULT_FLOOR_COLLIDER, []);
 
   const canSimulate = true;
 
@@ -790,7 +813,7 @@ export function ThreePreview({
 
           <directionalLight castShadow intensity={3} position={[3, 5, 4]} />
 
-          <gridHelper args={[10, 10]} />
+          <PreviewFloor floor={floorCollider} />
 
           <AvatarModel
             onClearSelection={onClearSelection}
@@ -809,6 +832,7 @@ export function ThreePreview({
             simulationEnabled={simulationEnabled}
             simulationRevision={simulationRevision}
             colliders={fabricColliders}
+            floor={floorCollider}
           />
         </Suspense>
 
