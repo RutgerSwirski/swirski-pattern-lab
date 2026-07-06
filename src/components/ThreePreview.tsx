@@ -25,6 +25,13 @@ import type {
 
 import { compileGarment } from "../lib/compileGarment";
 
+import {
+  compileStitchConstraints,
+  getPatternEdgePoint,
+  type PatternEdgeSample,
+  type StitchConstraint,
+} from "../lib/compileStitchConstraints";
+
 type TransformMode = "translate" | "rotate";
 
 const METRES_PER_MILLIMETRE = 0.001;
@@ -164,6 +171,45 @@ function getPieceCentre(points: PointPosition[]) {
     x: total.x / points.length,
     y: total.y / points.length,
   };
+}
+
+function previewTransformToMatrix(transform: PreviewTransform) {
+  const position = new THREE.Vector3(...transform.position);
+
+  const rotation = new THREE.Euler(
+    transform.rotation[0],
+    transform.rotation[1],
+    transform.rotation[2],
+    "XYZ",
+  );
+
+  const quaternion = new THREE.Quaternion().setFromEuler(rotation);
+
+  const scale = new THREE.Vector3(
+    transform.scale?.[0] ?? 1,
+    transform.scale?.[1] ?? 1,
+    transform.scale?.[2] ?? 1,
+  );
+
+  return new THREE.Matrix4().compose(position, quaternion, scale);
+}
+
+function getEdgeSampleWorldPoint(
+  piece: PatternPiece,
+  edge: PatternEdgeSample,
+  transform: PreviewTransform,
+  patternUnitsPerMillimetre: number,
+) {
+  const point = getPatternEdgePoint(piece, edge.edge, edge.t);
+  const centre = getPieceCentre(piece.points);
+
+  const localPoint = new THREE.Vector3(
+    ((point.x - centre.x) / patternUnitsPerMillimetre) * METRES_PER_MILLIMETRE,
+    -((point.y - centre.y) / patternUnitsPerMillimetre) * METRES_PER_MILLIMETRE,
+    0,
+  );
+
+  return localPoint.applyMatrix4(previewTransformToMatrix(transform));
 }
 
 function createPatternShape(
@@ -384,6 +430,96 @@ function SelectedPieceTransformGizmo({
   );
 }
 
+function StitchConstraintDebug({
+  constraints,
+  cycleSeamIds,
+  piecesById,
+  transformsByPieceId,
+  patternUnitsPerMillimetre,
+}: {
+  constraints: StitchConstraint[];
+  cycleSeamIds: string[];
+  piecesById: Map<string, PatternPiece>;
+  transformsByPieceId: Map<string, PreviewTransform>;
+  patternUnitsPerMillimetre: number;
+}) {
+  const geometry = useMemo(() => {
+    const positions: number[] = [];
+
+    for (const constraint of constraints) {
+      /*
+       * Hinged seams should already overlap, so they produce
+       * zero-length lines. Show only unresolved loop seams.
+       */
+      if (!cycleSeamIds.includes(constraint.seamId)) {
+        continue;
+      }
+
+      for (const sample of constraint.samples) {
+        const pieceA = piecesById.get(sample.a.pieceId);
+        const pieceB = piecesById.get(sample.b.pieceId);
+
+        const transformA = transformsByPieceId.get(sample.a.pieceId);
+        const transformB = transformsByPieceId.get(sample.b.pieceId);
+
+        if (!pieceA || !pieceB || !transformA || !transformB) {
+          continue;
+        }
+
+        const pointA = getEdgeSampleWorldPoint(
+          pieceA,
+          sample.a,
+          transformA,
+          patternUnitsPerMillimetre,
+        );
+
+        const pointB = getEdgeSampleWorldPoint(
+          pieceB,
+          sample.b,
+          transformB,
+          patternUnitsPerMillimetre,
+        );
+
+        positions.push(
+          pointA.x,
+          pointA.y,
+          pointA.z,
+          pointB.x,
+          pointB.y,
+          pointB.z,
+        );
+      }
+    }
+
+    const nextGeometry = new THREE.BufferGeometry();
+
+    nextGeometry.setAttribute(
+      "position",
+      new THREE.Float32BufferAttribute(positions, 3),
+    );
+
+    return nextGeometry;
+  }, [
+    constraints,
+    cycleSeamIds,
+    patternUnitsPerMillimetre,
+    piecesById,
+    transformsByPieceId,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      geometry.dispose();
+    };
+  }, [geometry]);
+
+  return (
+    <lineSegments geometry={geometry}>
+      <lineBasicMaterial color="#ef4444" transparent opacity={0.9} />
+    </lineSegments>
+  );
+}
+
 function GarmentPreview({
   pieces,
   selectedPieceId,
@@ -461,8 +597,40 @@ function GarmentPreview({
     );
   }, [drawablePieces, seams, patternUnitsPerMillimetre]);
 
+  const stitchConstraints = useMemo(
+    () => compileStitchConstraints(drawablePieces, seams),
+    [drawablePieces, seams],
+  );
+
+  const piecesById = useMemo(
+    () => new Map(drawablePieces.map((piece) => [piece.id, piece])),
+    [drawablePieces],
+  );
+
+  const transformsByPieceId = useMemo(() => {
+    const nextTransforms = new Map<string, PreviewTransform>();
+
+    for (const [index, piece] of drawablePieces.entries()) {
+      nextTransforms.set(
+        piece.id,
+        compiledGarment.transformsByPieceId[piece.id] ??
+          getPreviewTransform(piece, index),
+      );
+    }
+
+    return nextTransforms;
+  }, [compiledGarment.transformsByPieceId, drawablePieces]);
+
   return (
     <>
+      <StitchConstraintDebug
+        constraints={stitchConstraints}
+        cycleSeamIds={compiledGarment.cycleSeamIds}
+        piecesById={piecesById}
+        transformsByPieceId={transformsByPieceId}
+        patternUnitsPerMillimetre={patternUnitsPerMillimetre}
+      />
+
       {drawablePieces.map((piece, index) => (
         <PatternPiecePanel
           key={piece.id}
