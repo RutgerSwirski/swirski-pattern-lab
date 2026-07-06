@@ -62,6 +62,9 @@ export type PatternSeam = {
   reverseEdgeB: boolean;
 
   kind: "plain";
+
+  foldAngleRad?: number;
+  foldDirection: 1 | -1;
 };
 
 export type Tool = "select" | "draw" | "sew";

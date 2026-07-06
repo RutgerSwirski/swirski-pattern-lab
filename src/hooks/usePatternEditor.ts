@@ -732,6 +732,9 @@ export function usePatternEditor() {
           edgeB: edge,
           reverseEdgeB: true,
           kind: "plain",
+
+          foldAngleRad: Math.PI / 2,
+          foldDirection: 1,
         },
       ]);
 

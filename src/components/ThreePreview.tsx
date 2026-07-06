@@ -23,6 +23,8 @@ import type {
   PreviewTransform,
 } from "../types";
 
+import { compileGarment } from "../lib/compileGarment";
+
 type TransformMode = "translate" | "rotate";
 
 const METRES_PER_MILLIMETRE = 0.001;
@@ -45,7 +47,7 @@ type ThreePreviewProps = {
 
   onClearSelection?: () => void;
 
-  seams?: PatternSeam[];
+  seams: PatternSeam[];
 };
 
 const DEFAULT_PREVIEW_TRANSFORMS: readonly PreviewTransform[] = [
@@ -390,6 +392,7 @@ function GarmentPreview({
   onUpdatePiecePreviewTransform,
   transformMode,
   onSelectedObjectChange,
+  seams,
 }: {
   pieces: PatternPiece[];
   selectedPieceId?: string | null;
@@ -401,6 +404,7 @@ function GarmentPreview({
   ) => void;
   transformMode: TransformMode;
   onSelectedObjectChange?: (object: THREE.Group | null) => void;
+  seams: PatternSeam[];
 }) {
   const objectsByPieceIdRef = useRef(new Map<string, THREE.Group>());
 
@@ -444,6 +448,19 @@ function GarmentPreview({
 
   const drawablePieces = pieces.filter((piece) => piece.points.length >= 3);
 
+  const compiledGarment = useMemo(() => {
+    const piecesWithResolvedDefaults = drawablePieces.map((piece, index) => ({
+      ...piece,
+      previewTransform: getPreviewTransform(piece, index),
+    }));
+
+    return compileGarment(
+      piecesWithResolvedDefaults,
+      seams,
+      patternUnitsPerMillimetre,
+    );
+  }, [drawablePieces, seams, patternUnitsPerMillimetre]);
+
   return (
     <>
       {drawablePieces.map((piece, index) => (
@@ -451,7 +468,10 @@ function GarmentPreview({
           key={piece.id}
           piece={piece}
           isSelected={piece.id === selectedPieceId}
-          transform={getPreviewTransform(piece, index)}
+          transform={
+            compiledGarment.transformsByPieceId[piece.id] ??
+            getPreviewTransform(piece, index)
+          }
           patternUnitsPerMillimetre={patternUnitsPerMillimetre}
           onSelectPiece={onSelectPiece}
           onRegisterObject={registerObject}
@@ -587,6 +607,7 @@ export function ThreePreview({
             onUpdatePiecePreviewTransform={onUpdatePiecePreviewTransform}
             transformMode={transformMode}
             onSelectedObjectChange={handleSelectedObjectChange}
+            seams={seams}
           />
         </Suspense>
 
